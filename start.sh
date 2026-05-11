@@ -9,6 +9,11 @@ if [ ! -f "index.html" ]; then
   exit 1
 fi
 
+if [ ! -f "ssvep_server.py" ]; then
+  echo "未找到 ssvep_server.py，请确认脚本和 index.html 在同一个目录。"
+  exit 1
+fi
+
 if command -v python3 >/dev/null 2>&1; then
   PYTHON_BIN="python3"
 elif command -v python >/dev/null 2>&1; then
@@ -40,8 +45,9 @@ PY
 URL="http://127.0.0.1:${PORT}/index.html"
 
 echo ""
-echo "气动手套蓝牙调试台已准备启动"
+echo "气动手套 SSVEP 控制台已准备启动"
 echo "访问地址：${URL}"
+echo "算法接口：http://127.0.0.1:${PORT}/api/recognize"
 echo ""
 echo "提示：Web Bluetooth 建议使用 Chrome 或 Edge 打开。"
 echo "停止服务：在这个窗口按 Ctrl+C"
@@ -51,4 +57,4 @@ if command -v open >/dev/null 2>&1; then
   open "$URL" >/dev/null 2>&1 || true
 fi
 
-"$PYTHON_BIN" -m http.server "$PORT" --bind 127.0.0.1
+"$PYTHON_BIN" ssvep_server.py --port "$PORT"

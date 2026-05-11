@@ -203,6 +203,180 @@
       padding: 16px;
     }
 
+    .ssvep-panel {
+      display: grid;
+      gap: 14px;
+    }
+
+    .ssvep-targets {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .ssvep-target {
+      position: relative;
+      display: grid;
+      gap: 10px;
+      min-height: 190px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f7f9fc;
+      color: var(--text);
+      isolation: isolate;
+    }
+
+    .ssvep-target.active {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.14);
+    }
+
+    .ssvep-symbol {
+      display: grid;
+      place-items: center;
+      width: 72px;
+      height: 72px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--primary-strong);
+      font-size: 38px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .ssvep-title {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.2;
+    }
+
+    .ssvep-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      color: inherit;
+      opacity: 0.76;
+      font-size: 13px;
+    }
+
+    .ssvep-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+    }
+
+    .ssvep-actions,
+    .recognition-row,
+    .frequency-settings {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .recognition-row input,
+    .frequency-settings input {
+      width: 120px;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 10px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .recognition-row label,
+    .frequency-settings label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .ssvep-result {
+      display: grid;
+      gap: 6px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .ssvep-result strong {
+      color: var(--text);
+      font-size: 18px;
+    }
+
+    .frequency-settings {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .frequency-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .frequency-title {
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .frequency-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .frequency-item {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .frequency-item label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .frequency-item strong {
+      color: var(--text);
+    }
+
+    .frequency-item input {
+      width: 100%;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 10px;
+      background: #fff;
+      color: var(--text);
+    }
+
     .command-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -419,7 +593,9 @@
       }
 
       .command-grid,
-      .finger-actions {
+      .finger-actions,
+      .ssvep-targets,
+      .frequency-grid {
         grid-template-columns: 1fr;
       }
 
@@ -453,19 +629,62 @@
         <span>搜索方式</span>
         <select id="scanMode">
           <option value="all">显示全部设备</option>
-          <option value="name">仅显示 SY-HRE12 / SY-HRF12</option>
+          <option value="name">仅显示 SY-HR12 / SY-HRE12 / SY-HRF12</option>
         </select>
       </label>
       <button id="disconnectBtn" class="danger" type="button" disabled>断开连接</button>
       <button id="clearLogBtn" type="button">清空日志</button>
     </div>
 
-    <main>
-      <div>
-        <section>
-          <div class="section-head">
-            <h2>常用指令</h2>
-          </div>
+	    <main>
+	      <div>
+	        <section>
+	          <div class="section-head">
+	            <h2>SSVEP 双目标呈现</h2>
+	          </div>
+	          <div class="body ssvep-panel">
+	            <div id="ssvepTargets" class="ssvep-targets"></div>
+	            <div class="ssvep-actions">
+	              <button id="runCcaBtn" class="primary" type="button">运行 CCA 识别</button>
+	              <button id="simulateOpenBtn" type="button">模拟手张开</button>
+	              <button id="simulateCloseBtn" type="button">模拟手握紧</button>
+	              <button id="testCloseOpenBtn" type="button">测试握紧再张开</button>
+            </div>
+	            <div class="recognition-row">
+	              <label for="recognizedFreq">识别频率</label>
+	              <input id="recognizedFreq" type="number" min="1" max="60" step="0.01" value="8.50">
+	              <button id="applyFreqBtn" type="button">应用手动频率</button>
+	              <label>
+	                <input id="autoSendSsvEP" type="checkbox" checked>
+	                识别后自动发送
+	              </label>
+	              <label>
+	                <input id="autoPrimeControl" type="checkbox" checked>
+	                发送前自动接管/开始
+	              </label>
+	            </div>
+	            <div class="frequency-settings">
+	              <div class="frequency-head">
+	                <span class="frequency-title">频率配置</span>
+	                <div class="ssvep-actions">
+	                  <button id="useFingerPresetBtn" type="button">按 9-10Hz 顺序填充</button>
+	                  <button id="saveFreqBtn" class="primary" type="button">保存频率配置</button>
+	                </div>
+	              </div>
+	              <div id="frequencyGrid" class="frequency-grid"></div>
+	            </div>
+	            <div class="ssvep-result">
+	              <strong id="ssvepResultName">等待识别</strong>
+	              <span id="ssvepResultMeta">8.50 Hz 对应手张开，8.75 Hz 对应手握紧。</span>
+	              <span class="hex" id="ssvepResultHex">点击“运行 CCA 识别”会调用 testCCA.m，并使用算法输出驱动指令。</span>
+	            </div>
+	          </div>
+	        </section>
+
+	        <section style="margin-top: 16px;">
+	          <div class="section-head">
+	            <h2>常用指令</h2>
+	          </div>
           <div class="body">
             <div id="commandGrid" class="command-grid"></div>
           </div>
@@ -535,18 +754,47 @@
     const SERVICE_UUID = "0000ae30-0000-1000-8000-00805f9b34fb";
     const WRITE_UUID = "0000ae01-0000-1000-8000-00805f9b34fb";
     const NOTIFY_UUID = "0000ae02-0000-1000-8000-00805f9b34fb";
-    const ALLOWED_NAME_PREFIXES = ["SY-HRE12", "SY-HRF12"];
+    const ALLOWED_NAME_PREFIXES = ["SY-HR12", "SY-HRE12", "SY-HRF12"];
 
-    const PRESET_COMMANDS = [
-      { name: "接管模式", hex: "A5 5A 02 07 06 07 EA" },
-      { name: "开始", hex: "A5 5A 02 07 0A 01 EC" },
-      { name: "暂停", hex: "A5 5A 02 07 0A 00 ED" },
-      { name: "手张开", hex: "A5 5A 02 0B 0F 00 00 00 00 00 E4" },
-      { name: "手握紧", hex: "A5 5A 02 0B 0F 01 01 01 01 01 DF" }
-    ];
+	    const PRESET_COMMANDS = [
+	      { name: "接管模式", hex: "A5 5A 02 07 06 07 EA" },
+	      { name: "开始", hex: "A5 5A 02 07 0A 01 EC" },
+	      { name: "暂停", hex: "A5 5A 02 07 0A 00 ED" },
+	      { name: "手张开", hex: "A5 5A 02 0B 0F 00 00 00 00 00 E4" },
+	      { name: "手握紧", hex: "A5 5A 02 0B 0F 01 01 01 01 01 DF" }
+	    ];
 
     const FINGER_NAMES = ["大拇指", "食指", "中指", "无名指", "小拇指"];
     const FINGER_PREFIX = [0xA5, 0x5A, 0x02, 0x0B, 0x0F];
+
+    function checksumValue(bytes) {
+      const sum = bytes.reduce((total, byte) => (total + byte) & 0xff, 0);
+      return (~sum) & 0xff;
+    }
+
+    function bytesToHex(bytes) {
+      return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0").toUpperCase()).join(" ");
+    }
+
+    function buildFingerHex(states) {
+      const content = [...FINGER_PREFIX, ...states];
+      return bytesToHex([...content, checksumValue(content)]);
+    }
+
+    const SSVEP_COMMANDS = [
+      { id: "open", name: "手张开", symbol: "开", freq: 8.50, hex: "A5 5A 02 0B 0F 00 00 00 00 00 E4" },
+      { id: "close", name: "手握紧", symbol: "握", freq: 8.75, hex: "A5 5A 02 0B 0F 01 01 01 01 01 DF" },
+      { id: "thumb", name: "大拇指屈曲", symbol: "拇", freq: 9.00, hex: buildFingerHex([1, 0, 0, 0, 0]) },
+      { id: "index", name: "食指屈曲", symbol: "食", freq: 9.25, hex: buildFingerHex([0, 1, 0, 0, 0]) },
+      { id: "middle", name: "中指屈曲", symbol: "中", freq: 9.50, hex: buildFingerHex([0, 0, 1, 0, 0]) },
+      { id: "ring", name: "无名指屈曲", symbol: "名", freq: 9.75, hex: buildFingerHex([0, 0, 0, 1, 0]) },
+      { id: "little", name: "小拇指屈曲", symbol: "小", freq: 10.00, hex: buildFingerHex([0, 0, 0, 0, 1]) },
+      { id: "start", name: "开始", symbol: "启", freq: 10.25, hex: "A5 5A 02 07 0A 01 EC", skipPrime: true },
+      { id: "pause", name: "暂停", symbol: "停", freq: 10.50, hex: "A5 5A 02 07 0A 00 ED", skipPrime: true }
+    ];
+	    const CONTROL_MODE_HEX = "A5 5A 02 07 06 07 EA";
+	    const START_HEX = "A5 5A 02 07 0A 01 EC";
+	    const FREQ_TOLERANCE = 0.2;
 
     let device = null;
     let server = null;
@@ -560,11 +808,81 @@
     const connectBtn = $("#connectBtn");
     const scanModeEl = $("#scanMode");
     const disconnectBtn = $("#disconnectBtn");
-    const commandGrid = $("#commandGrid");
-    const fingersEl = $("#fingers");
+	    const commandGrid = $("#commandGrid");
+	    const fingersEl = $("#fingers");
+	    const ssvepTargetsEl = $("#ssvepTargets");
+	    const runCcaBtn = $("#runCcaBtn");
+	    const recognizedFreqEl = $("#recognizedFreq");
+	    const frequencyGrid = $("#frequencyGrid");
+	    const autoSendSsvEP = $("#autoSendSsvEP");
+	    const autoPrimeControl = $("#autoPrimeControl");
+	    const ssvepResultName = $("#ssvepResultName");
+	    const ssvepResultMeta = $("#ssvepResultMeta");
+	    const ssvepResultHex = $("#ssvepResultHex");
+
+	    let controlPrimed = false;
+
+    function loadFrequencySettings() {
+      try {
+        const saved = JSON.parse(localStorage.getItem("ssvepCommandFrequencies") || "{}");
+        SSVEP_COMMANDS.forEach((command) => {
+          const value = saved[command.id];
+          if (Number.isFinite(value)) {
+            command.freq = value;
+          }
+        });
+      } catch (error) {
+        localStorage.removeItem("ssvepCommandFrequencies");
+      }
+      recognizedFreqEl.value = SSVEP_COMMANDS[0].freq.toFixed(2);
+    }
+
+    function saveFrequencySettings() {
+      const nextValues = {};
+      for (const input of document.querySelectorAll("[data-frequency-input]")) {
+        const command = SSVEP_COMMANDS.find((item) => item.id === input.dataset.frequencyInput);
+        const freq = Number.parseFloat(input.value);
+        if (!command || !Number.isFinite(freq) || freq <= 0) {
+          addLog("err", "频率必须是大于 0 的数字");
+          return;
+        }
+        nextValues[command.id] = freq;
+      }
+
+      const freqs = Object.values(nextValues);
+      for (let i = 0; i < freqs.length; i += 1) {
+        for (let j = i + 1; j < freqs.length; j += 1) {
+          if (Math.abs(freqs[i] - freqs[j]) <= FREQ_TOLERANCE) {
+            addLog("err", `任意两个频率至少需要相差 ${FREQ_TOLERANCE.toFixed(2)} Hz`);
+            return;
+          }
+        }
+      }
+
+      SSVEP_COMMANDS.forEach((command) => {
+        command.freq = nextValues[command.id];
+      });
+      localStorage.setItem("ssvepCommandFrequencies", JSON.stringify(nextValues));
+      refreshSsvEPDisplay();
+      recognizedFreqEl.value = SSVEP_COMMANDS[0].freq.toFixed(2);
+      addLog("sys", "频率配置已保存");
+    }
+
+    function useFingerFrequencyPreset() {
+      const fingerFrequencies = [9, 9.25, 9.5, 9.75, 10];
+      SSVEP_COMMANDS.slice(2, 7).forEach((command, index) => {
+        command.freq = fingerFrequencies[index];
+      });
+      SSVEP_COMMANDS.find((command) => command.id === "start").freq = 10.25;
+      SSVEP_COMMANDS.find((command) => command.id === "pause").freq = 10.50;
+      renderFrequencySettings();
+      saveFrequencySettings();
+      refreshSsvEPDisplay();
+      addLog("sys", "已启用频率：五指 9.00-10.00Hz，开始 10.25Hz，暂停 10.50Hz");
+    }
 
     function toHex(bytes) {
-      return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0").toUpperCase()).join(" ");
+      return bytesToHex(bytes);
     }
 
     function parseHex(input) {
@@ -590,8 +908,7 @@
     }
 
     function checksum(bytes) {
-      const sum = bytes.reduce((total, byte) => (total + byte) & 0xff, 0);
-      return (~sum) & 0xff;
+      return checksumValue(bytes);
     }
 
     function setStatus(state, text) {
@@ -616,10 +933,10 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    async function writeBytes(bytes, label = "自定义") {
-      if (!writeCharacteristic) {
-        throw new Error("蓝牙未连接");
-      }
+	    async function writeBytes(bytes, label = "自定义") {
+	      if (!writeCharacteristic) {
+	        throw new Error("蓝牙未连接");
+	      }
 
       const payload = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
       if (writeCharacteristic.properties.writeWithoutResponse) {
@@ -629,13 +946,31 @@
       } else {
         await writeCharacteristic.writeValue(payload);
       }
-      addLog("tx", `${label}: ${toHex(payload)}`);
-    }
+	      addLog("tx", `${label}: ${toHex(payload)}`);
+	    }
+
+	    function wait(ms) {
+	      return new Promise((resolve) => window.setTimeout(resolve, ms));
+	    }
+
+	    async function ensureControlPrimed() {
+	      if (!autoPrimeControl.checked) {
+	        return;
+	      }
+	      await writeBytes(parseHex(CONTROL_MODE_HEX), "自动接管模式");
+	      await wait(250);
+	      await writeBytes(parseHex(START_HEX), "自动开始");
+	      await wait(250);
+	      controlPrimed = true;
+	    }
 
     function buildDeviceRequestOptions() {
       if (scanModeEl.value === "name") {
         return {
-          filters: ALLOWED_NAME_PREFIXES.map((namePrefix) => ({ namePrefix })),
+          filters: [
+            ...ALLOWED_NAME_PREFIXES.map((namePrefix) => ({ namePrefix })),
+            { services: [SERVICE_UUID] }
+          ],
           optionalServices: [SERVICE_UUID]
         };
       }
@@ -649,7 +984,7 @@
     function getConnectErrorMessage(error) {
       if (error?.name === "NotFoundError") {
         if (scanModeEl.value === "name") {
-          return `没有找到名称以 ${ALLOWED_NAME_PREFIXES.join(" / ")} 开头的设备，请切换为“显示全部设备”再试，并确认手套已开机且正在广播。`;
+	          return `没有找到名称以 ${ALLOWED_NAME_PREFIXES.join(" / ")} 开头或包含 E12 服务的设备。请切换为“显示全部设备”，或重启手套让它重新广播。`;
         }
         return "未选择蓝牙设备，或附近没有可连接设备。请确认手套已开机、靠近电脑，并重试。";
       }
@@ -707,13 +1042,14 @@
       }
     }
 
-    function onDisconnected() {
-      writeCharacteristic = null;
-      notifyCharacteristic = null;
-      server = null;
-      setStatus("", "未连接");
-      addLog("sys", "设备已断开");
-    }
+	    function onDisconnected() {
+	      writeCharacteristic = null;
+	      notifyCharacteristic = null;
+	      server = null;
+	      controlPrimed = false;
+	      setStatus("", "未连接");
+	      addLog("sys", "设备已断开");
+	    }
 
     function onNotify(event) {
       const value = event.target.value;
@@ -737,29 +1073,189 @@
       });
     }
 
-    function setAllFingers(checked) {
-      document.querySelectorAll("[data-finger]").forEach((input) => {
-        input.checked = checked;
+	    function setAllFingers(checked) {
+	      document.querySelectorAll("[data-finger]").forEach((input) => {
+	        input.checked = checked;
+	      });
+	      updateFingerPreview();
+	    }
+
+	    function renderSsvEPTargets() {
+	      SSVEP_COMMANDS.forEach((command) => {
+	        const target = document.createElement("button");
+	        target.className = "ssvep-target";
+	        target.type = "button";
+	        target.dataset.ssvEpId = command.id;
+	        target.innerHTML = `
+	          <span class="ssvep-symbol"></span>
+	          <h3 class="ssvep-title"></h3>
+	          <span class="ssvep-meta">
+	            <span class="ssvep-chip"></span>
+	            <span class="hex"></span>
+	          </span>
+	        `;
+	        target.querySelector(".ssvep-symbol").textContent = command.symbol;
+	        target.querySelector(".ssvep-title").textContent = command.name;
+	        target.querySelector(".hex").textContent = command.hex;
+	        target.addEventListener("click", () => executeSsvEPCommand(command, "手动选择"));
+	        ssvepTargetsEl.append(target);
+	      });
+	      refreshSsvEPDisplay();
+	    }
+
+    function renderFrequencySettings() {
+      frequencyGrid.innerHTML = "";
+      SSVEP_COMMANDS.forEach((command) => {
+        const item = document.createElement("div");
+        item.className = "frequency-item";
+        item.innerHTML = `
+          <label>
+            <strong></strong>
+            <span></span>
+          </label>
+          <input type="number" min="1" max="60" step="0.01" data-frequency-input="">
+        `;
+        item.querySelector("strong").textContent = command.name;
+        item.querySelector("span").textContent = command.symbol;
+        const input = item.querySelector("input");
+        input.dataset.frequencyInput = command.id;
+        input.value = command.freq.toFixed(2);
+        input.addEventListener("change", saveFrequencySettings);
+        frequencyGrid.append(item);
       });
-      updateFingerPreview();
     }
 
-    function renderCommands() {
-      PRESET_COMMANDS.forEach((command) => {
-        const button = document.createElement("button");
+	    function refreshSsvEPDisplay() {
+	      SSVEP_COMMANDS.forEach((command) => {
+	        const target = document.querySelector(`[data-ssv-ep-id="${command.id}"]`);
+	        if (target) {
+	          target.querySelector(".ssvep-chip").textContent = `${command.freq.toFixed(2)} Hz`;
+	        }
+	      });
+	      ssvepResultMeta.textContent = "识别结果会按下方频率配置表映射到对应指令。";
+	    }
+
+	    function findSsvEPCommandByFrequency(freq) {
+	      return SSVEP_COMMANDS
+	        .map((command) => ({ command, delta: Math.abs(command.freq - freq) }))
+	        .sort((a, b) => a.delta - b.delta)
+	        .find((item) => item.delta <= FREQ_TOLERANCE)?.command || null;
+	    }
+
+	    function updateSsvEPResult(command, source) {
+	      document.querySelectorAll("[data-ssv-ep-id]").forEach((target) => {
+	        target.classList.toggle("active", target.dataset.ssvEpId === command.id);
+	      });
+	      recognizedFreqEl.value = command.freq.toFixed(2);
+	      ssvepResultName.textContent = command.name;
+	      ssvepResultMeta.textContent = `${source}：${command.freq.toFixed(2)} Hz -> ${command.name}`;
+	      ssvepResultHex.textContent = command.hex;
+	    }
+
+	    async function executeSsvEPCommand(command, source = "算法识别") {
+	      updateSsvEPResult(command, source);
+	      if (!autoSendSsvEP.checked) {
+	        addLog("sys", `${source}: ${command.freq.toFixed(2)} Hz 映射为 ${command.name}，已关闭自动发送`);
+	        return;
+	      }
+	      if (!writeCharacteristic) {
+	        addLog("sys", `${source}: ${command.freq.toFixed(2)} Hz 映射为 ${command.name}，蓝牙未连接`);
+	        return;
+      }
+      try {
+        if (!command.skipPrime) {
+          await ensureControlPrimed();
+        }
+        await writeBytes(parseHex(command.hex), `SSVEP ${command.name}`);
+        await wait(180);
+        await writeBytes(parseHex(command.hex), `SSVEP ${command.name} 重发`);
+	      } catch (error) {
+	        addLog("err", error.message || String(error));
+	      }
+	    }
+
+	    async function testCloseOpenSequence() {
+	      if (!writeCharacteristic) {
+	        addLog("sys", "蓝牙未连接，无法执行动作测试");
+	        return;
+	      }
+	      try {
+	        await ensureControlPrimed();
+	        await writeBytes(parseHex(SSVEP_COMMANDS[1].hex), "动作测试 手握紧");
+	        await wait(1200);
+	        await writeBytes(parseHex(SSVEP_COMMANDS[0].hex), "动作测试 手张开");
+	      } catch (error) {
+	        addLog("err", error.message || String(error));
+	      }
+	    }
+
+	    async function applyCcaResult(result) {
+	      const command = SSVEP_COMMANDS.find((item) => item.hex === result.command_hex)
+	        || findSsvEPCommandByFrequency(Number(result.recognized_freq));
+	      if (!command) {
+	        addLog("err", `算法输出 ${Number(result.recognized_freq).toFixed(2)} Hz，但没有匹配到手张开/手握紧指令`);
+	        return;
+	      }
+	      recognizedFreqEl.value = Number(result.recognized_freq).toFixed(2);
+	      ssvepResultName.textContent = result.command_name || command.name;
+	      ssvepResultMeta.textContent = `CCA: ${Number(result.recognized_freq).toFixed(2)} Hz -> ${result.command_name || command.name}，置信比 ${Number(result.confidence_ratio).toFixed(4)}`;
+	      ssvepResultHex.textContent = result.command_hex || command.hex;
+	      await executeSsvEPCommand(command, "CCA 算法");
+	    }
+
+	    async function runCcaRecognition() {
+	      runCcaBtn.disabled = true;
+	      addLog("sys", "正在调用 MATLAB CCA 算法");
+	      try {
+        const params = new URLSearchParams({
+          commands: JSON.stringify(SSVEP_COMMANDS.map(({ name, freq, hex }) => ({ name, freq, hex })))
+        });
+	        const response = await fetch(`/api/recognize?${params}`, { cache: "no-store" });
+	        const payload = await response.json();
+	        if (!response.ok || !payload.ok) {
+	          throw new Error(payload.error || "CCA 识别失败");
+	        }
+	        await applyCcaResult(payload.result);
+	      } catch (error) {
+	        addLog("err", error.message || String(error));
+	      } finally {
+	        runCcaBtn.disabled = false;
+	      }
+	    }
+
+	    function applyRecognizedFrequency() {
+	      const freq = Number.parseFloat(recognizedFreqEl.value);
+	      if (!Number.isFinite(freq)) {
+	        addLog("err", "识别频率无效");
+	        return;
+	      }
+	      const command = findSsvEPCommandByFrequency(freq);
+	      if (!command) {
+	        addLog("err", `未找到 ${freq.toFixed(2)} Hz 对应指令`);
+	        return;
+	      }
+	      executeSsvEPCommand(command, "算法识别");
+	    }
+
+	    function renderCommands() {
+	      PRESET_COMMANDS.forEach((command) => {
+	        const button = document.createElement("button");
         button.className = "cmd";
         button.type = "button";
         button.dataset.needsBle = "true";
         button.disabled = true;
         button.innerHTML = `<strong></strong><span class="hex"></span>`;
-        button.querySelector("strong").textContent = command.name;
-        button.querySelector(".hex").textContent = command.hex;
-        button.addEventListener("click", async () => {
-          try {
-            await writeBytes(parseHex(command.hex), command.name);
-          } catch (error) {
-            addLog("err", error.message || String(error));
-          }
+	        button.querySelector("strong").textContent = command.name;
+	        button.querySelector(".hex").textContent = command.hex;
+	        button.addEventListener("click", async () => {
+	          try {
+	            await writeBytes(parseHex(command.hex), command.name);
+	            if (command.name === "接管模式" || command.name === "开始") {
+	              controlPrimed = true;
+	            }
+	          } catch (error) {
+	            addLog("err", error.message || String(error));
+	          }
         });
         commandGrid.append(button);
       });
@@ -781,11 +1277,18 @@
       updateFingerPreview();
     }
 
-    connectBtn.addEventListener("click", connect);
-    disconnectBtn.addEventListener("click", disconnect);
-    $("#clearLogBtn").addEventListener("click", () => {
-      logEl.innerHTML = "";
-    });
+	    connectBtn.addEventListener("click", connect);
+	    disconnectBtn.addEventListener("click", disconnect);
+	    runCcaBtn.addEventListener("click", runCcaRecognition);
+    $("#saveFreqBtn").addEventListener("click", saveFrequencySettings);
+    $("#useFingerPresetBtn").addEventListener("click", useFingerFrequencyPreset);
+	    $("#simulateOpenBtn").addEventListener("click", () => executeSsvEPCommand(SSVEP_COMMANDS[0], "模拟识别"));
+	    $("#simulateCloseBtn").addEventListener("click", () => executeSsvEPCommand(SSVEP_COMMANDS[1], "模拟识别"));
+	    $("#testCloseOpenBtn").addEventListener("click", testCloseOpenSequence);
+	    $("#applyFreqBtn").addEventListener("click", applyRecognizedFrequency);
+	    $("#clearLogBtn").addEventListener("click", () => {
+	      logEl.innerHTML = "";
+	    });
     $("#copyLogBtn").addEventListener("click", async () => {
       const text = Array.from(logEl.children, (item) => item.textContent.trim()).join("\n");
       await navigator.clipboard.writeText(text);
@@ -822,10 +1325,13 @@
       }
     });
 
-    renderCommands();
-    renderFingers();
-    setStatus("", "未连接");
-    addLog("sys", "页面已就绪");
-  </script>
+	    loadFrequencySettings();
+	    renderSsvEPTargets();
+	    renderFrequencySettings();
+	    renderCommands();
+	    renderFingers();
+	    setStatus("", "未连接");
+	    addLog("sys", "页面已就绪");
+	  </script>
 </body>
 </html>
