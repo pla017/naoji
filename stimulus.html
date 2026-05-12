@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SSVEP 被试刺激页</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050505;
+      --fg: #f7f7f2;
+      --muted: #9da3a6;
+      --line: rgba(255, 255, 255, 0.18);
+      --panel: rgba(16, 17, 17, 0.78);
+      --accent: #4bd1a0;
+      --warn: #ffc857;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--fg);
+      padding: 0 14px;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+    }
+
+    .stage {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        var(--bg);
+      background-size: 64px 64px;
+    }
+
+    .hud {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .hud strong {
+      color: var(--fg);
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .hud-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .targets {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(160px, 1fr));
+      gap: 18px;
+      width: min(1180px, calc(100vw - 48px));
+      margin: auto;
+      padding: 24px 0;
+    }
+
+    .target {
+      display: grid;
+      place-items: center;
+      gap: 12px;
+      min-height: 180px;
+      aspect-ratio: 1.35;
+      border: 2px solid rgba(255, 255, 255, 0.24);
+      border-radius: 8px;
+      background: #121212;
+      color: #f5f5ee;
+      transition: none;
+      user-select: none;
+    }
+
+    .target.is-on {
+      background: #f7f7f2;
+      color: #050505;
+    }
+
+    .symbol {
+      font-size: 72px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .name {
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .freq {
+      color: currentColor;
+      opacity: 0.66;
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 16px;
+    }
+
+    .idle .target {
+      opacity: 0.48;
+    }
+
+    .running .hud strong {
+      color: var(--accent);
+    }
+
+    @media (max-width: 820px) {
+      .hud {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .targets {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+        width: min(100vw - 24px, 760px);
+        gap: 12px;
+      }
+
+      .target {
+        min-height: 132px;
+      }
+
+      .symbol {
+        font-size: 48px;
+      }
+
+      .name {
+        font-size: 17px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="stage" class="stage idle">
+    <div class="hud">
+      <div>
+        <strong id="statusText">等待控制页开始</strong>
+        <span id="metaText">实时桥接连接中</span>
+      </div>
+      <div class="hud-actions">
+        <button id="fullscreenBtn" type="button">进入全屏</button>
+        <button id="stopLocalBtn" type="button">本页停止</button>
+      </div>
+    </div>
+    <main id="targets" class="targets"></main>
+  </div>
+
+  <script>
+    const DEFAULT_COMMANDS = [
+      { id: "open", name: "手张开", symbol: "开", freq: 8.50 },
+      { id: "close", name: "手握紧", symbol: "握", freq: 8.75 },
+      { id: "thumb", name: "大拇指屈曲", symbol: "拇", freq: 9.00 },
+      { id: "index", name: "食指屈曲", symbol: "食", freq: 9.25 },
+      { id: "middle", name: "中指屈曲", symbol: "中", freq: 9.50 },
+      { id: "ring", name: "无名指屈曲", symbol: "名", freq: 9.75 },
+      { id: "little", name: "小拇指屈曲", symbol: "小", freq: 10.00 },
+      { id: "start", name: "开始", symbol: "启", freq: 10.25 },
+      { id: "pause", name: "暂停", symbol: "停", freq: 10.50 }
+    ];
+
+    const stage = document.querySelector("#stage");
+    const targetsEl = document.querySelector("#targets");
+    const statusText = document.querySelector("#statusText");
+    const metaText = document.querySelector("#metaText");
+
+    let commands = DEFAULT_COMMANDS;
+    let animationId = 0;
+    let startTime = 0;
+    let running = false;
+    let eventSource = null;
+
+    function renderTargets() {
+      targetsEl.innerHTML = "";
+      commands.forEach((command) => {
+        const target = document.createElement("section");
+        target.className = "target";
+        target.dataset.targetId = command.id;
+        target.dataset.freq = command.freq;
+        target.innerHTML = `
+          <span class="symbol"></span>
+          <span class="name"></span>
+          <span class="freq"></span>
+        `;
+        target.querySelector(".symbol").textContent = command.symbol || command.name.slice(0, 1);
+        target.querySelector(".name").textContent = command.name;
+        target.querySelector(".freq").textContent = `${Number(command.freq).toFixed(2)} Hz`;
+        targetsEl.append(target);
+      });
+    }
+
+    async function postJson(url, payload = {}) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        throw new Error(`${url} 请求失败`);
+      }
+      return response.json().catch(() => ({}));
+    }
+
+    function animate(now) {
+      const elapsedSeconds = (now - startTime) / 1000;
+      document.querySelectorAll(".target").forEach((target) => {
+        const freq = Number(target.dataset.freq);
+        const isOn = Math.sin(2 * Math.PI * freq * elapsedSeconds) >= 0;
+        target.classList.toggle("is-on", isOn);
+      });
+      animationId = window.requestAnimationFrame(animate);
+    }
+
+    async function reportStimOnset() {
+      const onset = {
+        client_timestamp_ms: Date.now(),
+        performance_time_origin: performance.timeOrigin,
+        performance_now: performance.now(),
+        targets: commands.map(({ id, name, freq }) => ({ id, name, freq }))
+      };
+      try {
+        await postJson("/api/stim_onset", onset);
+      } catch (error) {
+        metaText.textContent = error.message || String(error);
+      }
+    }
+
+    function startStimulus(config = {}) {
+      commands = Array.isArray(config.commands) && config.commands.length ? config.commands : commands;
+      renderTargets();
+      stopLocal(false);
+      running = true;
+      stage.classList.remove("idle");
+      stage.classList.add("running");
+      statusText.textContent = "正在呈现";
+      metaText.textContent = `${commands.length} 个目标`;
+      startTime = performance.now();
+      animationId = window.requestAnimationFrame(animate);
+      reportStimOnset();
+    }
+
+    function stopLocal(updateText = true) {
+      running = false;
+      if (animationId) {
+        window.cancelAnimationFrame(animationId);
+        animationId = 0;
+      }
+      document.querySelectorAll(".target").forEach((target) => target.classList.remove("is-on"));
+      stage.classList.add("idle");
+      stage.classList.remove("running");
+      if (updateText) {
+        statusText.textContent = "已停止";
+        metaText.textContent = "等待控制页开始";
+      }
+    }
+
+    async function loadState() {
+      try {
+        const response = await fetch("/api/state", { cache: "no-store" });
+        const payload = await response.json();
+        if (payload.state?.config?.commands) {
+          commands = payload.state.config.commands;
+          renderTargets();
+        }
+        if (payload.state?.session?.active) {
+          startStimulus(payload.state.config);
+        }
+      } catch (error) {
+        metaText.textContent = error.message || String(error);
+      }
+    }
+
+    function connectEvents() {
+      if (!window.EventSource) {
+        statusText.textContent = "浏览器不支持实时事件";
+        return;
+      }
+      eventSource = new EventSource("/api/events");
+      eventSource.addEventListener("open", () => {
+        if (!running) {
+          metaText.textContent = "已连接实时桥接";
+        }
+      });
+      eventSource.addEventListener("error", () => {
+        if (!running) {
+          metaText.textContent = "实时桥接重连中";
+        }
+      });
+      eventSource.addEventListener("state", (event) => {
+        const payload = JSON.parse(event.data);
+        if (payload.state?.config?.commands) {
+          commands = payload.state.config.commands;
+          renderTargets();
+        }
+      });
+      eventSource.addEventListener("config_update", (event) => {
+        const config = JSON.parse(event.data);
+        if (Array.isArray(config.commands)) {
+          commands = config.commands;
+          renderTargets();
+        }
+      });
+      eventSource.addEventListener("session_start", (event) => {
+        const payload = JSON.parse(event.data);
+        startStimulus(payload.config || {});
+      });
+      eventSource.addEventListener("session_stop", () => {
+        stopLocal(true);
+      });
+    }
+
+    document.querySelector("#fullscreenBtn").addEventListener("click", async () => {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    });
+
+    document.querySelector("#stopLocalBtn").addEventListener("click", () => stopLocal(true));
+
+    renderTargets();
+    loadState();
+    connectEvents();
+  </script>
+</body>
+</html>

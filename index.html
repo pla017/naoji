@@ -646,6 +646,9 @@
 	            <div id="ssvepTargets" class="ssvep-targets"></div>
 	            <div class="ssvep-actions">
 	              <button id="runCcaBtn" class="primary" type="button">运行 CCA 识别</button>
+	              <button id="openStimulusBtn" type="button">打开被试页</button>
+	              <button id="startSessionBtn" class="primary" type="button">开始实时联动</button>
+	              <button id="stopSessionBtn" class="danger" type="button">停止实时联动</button>
 	              <button id="simulateOpenBtn" type="button">模拟手张开</button>
 	              <button id="simulateCloseBtn" type="button">模拟手握紧</button>
 	              <button id="testCloseOpenBtn" type="button">测试握紧再张开</button>
@@ -677,6 +680,11 @@
 	              <strong id="ssvepResultName">等待识别</strong>
 	              <span id="ssvepResultMeta">8.50 Hz 对应手张开，8.75 Hz 对应手握紧。</span>
 	              <span class="hex" id="ssvepResultHex">点击“运行 CCA 识别”会调用 testCCA.m，并使用算法输出驱动指令。</span>
+	            </div>
+	            <div class="ssvep-result">
+	              <strong id="bridgeStatus">实时桥接连接中</strong>
+	              <span id="bridgeMeta">MATLAB 识别结果可 POST 到下方地址，控制页会实时接收并驱动手套。</span>
+	              <span class="hex" id="matlabPostUrl">正在获取地址...</span>
 	            </div>
 	          </div>
 	        </section>
@@ -819,8 +827,16 @@
 	    const ssvepResultName = $("#ssvepResultName");
 	    const ssvepResultMeta = $("#ssvepResultMeta");
 	    const ssvepResultHex = $("#ssvepResultHex");
+	    const bridgeStatusEl = $("#bridgeStatus");
+	    const bridgeMetaEl = $("#bridgeMeta");
+	    const matlabPostUrlEl = $("#matlabPostUrl");
 
 	    let controlPrimed = false;
+	    let eventSource = null;
+	    let lastRealtimeCommandId = "";
+	    let lastRealtimeCommandAt = 0;
+	    let lanIps = [];
+	    const REALTIME_SEND_COOLDOWN_MS = 1200;
 
     function loadFrequencySettings() {
       try {
@@ -866,6 +882,7 @@
       refreshSsvEPDisplay();
       recognizedFreqEl.value = SSVEP_COMMANDS[0].freq.toFixed(2);
       addLog("sys", "频率配置已保存");
+      syncBridgeConfig();
     }
 
     function useFingerFrequencyPreset() {
@@ -932,6 +949,52 @@
       logEl.append(item);
       logEl.scrollTop = logEl.scrollHeight;
     }
+
+	    function bridgePayloadCommands() {
+	      return SSVEP_COMMANDS.map(({ id, name, symbol, freq, hex, skipPrime }) => ({
+	        id,
+	        name,
+	        symbol,
+	        freq,
+	        hex,
+	        skipPrime: Boolean(skipPrime)
+	      }));
+	    }
+
+	    async function postJson(url, payload = {}) {
+	      const response = await fetch(url, {
+	        method: "POST",
+	        headers: { "Content-Type": "application/json" },
+	        body: JSON.stringify(payload),
+	        cache: "no-store"
+	      });
+	      const data = await response.json().catch(() => ({}));
+	      if (!response.ok || data.ok === false) {
+	        throw new Error(data.error || `${url} 请求失败`);
+	      }
+	      return data;
+	    }
+
+	    function pickBridgeHost() {
+	      const currentHost = window.location.hostname;
+	      if ((currentHost === "127.0.0.1" || currentHost === "localhost") && lanIps.length > 0) {
+	        return lanIps[0];
+	      }
+	      return currentHost || "127.0.0.1";
+	    }
+
+	    function refreshMatlabPostUrl() {
+	      const host = pickBridgeHost();
+	      const port = window.location.port ? `:${window.location.port}` : "";
+	      matlabPostUrlEl.textContent = `${window.location.protocol}//${host}${port}/api/eeg_result`;
+	    }
+
+	    function setBridgeStatus(text, detail = "") {
+	      bridgeStatusEl.textContent = text;
+	      if (detail) {
+	        bridgeMetaEl.textContent = detail;
+	      }
+	    }
 
 	    async function writeBytes(bytes, label = "自定义") {
 	      if (!writeCharacteristic) {
@@ -1203,6 +1266,119 @@
 	      await executeSsvEPCommand(command, "CCA 算法");
 	    }
 
+	    function findSsvEPCommandFromRealtime(result) {
+	      const freq = Number(result.recognized_freq ?? result.freq);
+	      const target = String(result.target ?? result.target_id ?? result.id ?? "").trim();
+	      const commandName = String(result.command_name ?? result.name ?? "").trim();
+	      const commandHex = String(result.command_hex ?? result.hex ?? "").trim();
+	      return SSVEP_COMMANDS.find((item) => commandHex && item.hex === commandHex)
+	        || SSVEP_COMMANDS.find((item) => target && item.id === target)
+	        || SSVEP_COMMANDS.find((item) => commandName && item.name === commandName)
+	        || (Number.isFinite(freq) ? findSsvEPCommandByFrequency(freq) : null);
+	    }
+
+	    async function applyRealtimeEegResult(result) {
+	      const command = findSsvEPCommandFromRealtime(result);
+	      const freq = Number(result.recognized_freq ?? result.freq ?? command?.freq);
+	      if (!command) {
+	        addLog("err", `MATLAB 实时结果未匹配到指令: ${JSON.stringify(result)}`);
+	        return;
+	      }
+
+	      const now = Date.now();
+	      if (lastRealtimeCommandId === command.id && now - lastRealtimeCommandAt < REALTIME_SEND_COOLDOWN_MS) {
+	        ssvepResultMeta.textContent = `MATLAB 实时：${Number.isFinite(freq) ? freq.toFixed(2) : command.freq.toFixed(2)} Hz -> ${command.name}，冷却中未重复发送`;
+	        return;
+	      }
+
+	      lastRealtimeCommandId = command.id;
+	      lastRealtimeCommandAt = now;
+	      recognizedFreqEl.value = Number.isFinite(freq) ? freq.toFixed(2) : command.freq.toFixed(2);
+	      ssvepResultName.textContent = result.command_name || command.name;
+	      ssvepResultMeta.textContent = `MATLAB 实时：${recognizedFreqEl.value} Hz -> ${result.command_name || command.name}，置信 ${Number(result.confidence_ratio ?? result.confidence ?? 0).toFixed(4)}`;
+	      ssvepResultHex.textContent = result.command_hex || command.hex;
+	      await executeSsvEPCommand(command, "MATLAB 实时");
+	    }
+
+	    async function syncBridgeConfig() {
+	      try {
+	        await postJson("/api/config", { commands: bridgePayloadCommands() });
+	      } catch (error) {
+	        addLog("err", `实时配置同步失败: ${error.message || String(error)}`);
+	      }
+	    }
+
+	    async function startRealtimeSession() {
+	      try {
+	        await postJson("/api/session/start", {
+	          commands: bridgePayloadCommands(),
+	          trial: `session-${Date.now()}`
+	        });
+	        setBridgeStatus("实时联动已启动", "被试页开始呈现后，MATLAB 可持续 POST 识别结果。");
+	        addLog("sys", "实时联动已启动");
+	      } catch (error) {
+	        addLog("err", error.message || String(error));
+	      }
+	    }
+
+	    async function stopRealtimeSession() {
+	      try {
+	        await postJson("/api/session/stop", { reason: "manual" });
+	        setBridgeStatus("实时联动已停止", "被试页已收到停止事件。");
+	        addLog("sys", "实时联动已停止");
+	      } catch (error) {
+	        addLog("err", error.message || String(error));
+	      }
+	    }
+
+	    function openStimulusPage() {
+	      window.open("/stimulus.html", "ssvep_stimulus", "noopener,noreferrer");
+	    }
+
+	    function connectRealtimeBridge() {
+	      if (!window.EventSource) {
+	        setBridgeStatus("实时桥接不可用", "当前浏览器不支持 EventSource，请使用 Chrome 或 Edge。");
+	        return;
+	      }
+	      if (eventSource) {
+	        eventSource.close();
+	      }
+
+	      eventSource = new EventSource("/api/events");
+	      eventSource.addEventListener("open", () => {
+	        setBridgeStatus("实时桥接已连接", "等待 MATLAB 上报识别结果。");
+	        refreshMatlabPostUrl();
+	      });
+	      eventSource.addEventListener("error", () => {
+	        setBridgeStatus("实时桥接重连中", "如果长时间未恢复，请确认本地服务仍在运行。");
+	      });
+	      eventSource.addEventListener("state", (event) => {
+	        const payload = JSON.parse(event.data);
+	        lanIps = payload.lan_ips || [];
+	        refreshMatlabPostUrl();
+	      });
+	      eventSource.addEventListener("config_update", () => {
+	        addLog("sys", "刺激配置已同步到服务端");
+	      });
+	      eventSource.addEventListener("session_start", () => {
+	        setBridgeStatus("实时联动已启动", "控制页正在监听 MATLAB 实时识别结果。");
+	      });
+	      eventSource.addEventListener("session_stop", () => {
+	        setBridgeStatus("实时联动已停止", "控制页仍保持监听，可再次开始。");
+	      });
+	      eventSource.addEventListener("stim_onset", (event) => {
+	        const onset = JSON.parse(event.data);
+	        addLog("sys", `被试页刺激开始: ${onset.targets?.length || 0} 个目标`);
+	      });
+	      eventSource.addEventListener("eeg_result", async (event) => {
+	        try {
+	          await applyRealtimeEegResult(JSON.parse(event.data));
+	        } catch (error) {
+	          addLog("err", error.message || String(error));
+	        }
+	      });
+	    }
+
 	    async function runCcaRecognition() {
 	      runCcaBtn.disabled = true;
 	      addLog("sys", "正在调用 MATLAB CCA 算法");
@@ -1280,6 +1456,9 @@
 	    connectBtn.addEventListener("click", connect);
 	    disconnectBtn.addEventListener("click", disconnect);
 	    runCcaBtn.addEventListener("click", runCcaRecognition);
+	    $("#openStimulusBtn").addEventListener("click", openStimulusPage);
+	    $("#startSessionBtn").addEventListener("click", startRealtimeSession);
+	    $("#stopSessionBtn").addEventListener("click", stopRealtimeSession);
     $("#saveFreqBtn").addEventListener("click", saveFrequencySettings);
     $("#useFingerPresetBtn").addEventListener("click", useFingerFrequencyPreset);
 	    $("#simulateOpenBtn").addEventListener("click", () => executeSsvEPCommand(SSVEP_COMMANDS[0], "模拟识别"));
@@ -1331,6 +1510,9 @@
 	    renderCommands();
 	    renderFingers();
 	    setStatus("", "未连接");
+	    refreshMatlabPostUrl();
+	    connectRealtimeBridge();
+	    syncBridgeConfig();
 	    addLog("sys", "页面已就绪");
 	  </script>
 </body>
