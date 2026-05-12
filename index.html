@@ -835,6 +835,7 @@
 	    let eventSource = null;
 	    let lastRealtimeCommandId = "";
 	    let lastRealtimeCommandAt = 0;
+	    let realtimeSessionActive = false;
 	    let lanIps = [];
 	    const REALTIME_SEND_COOLDOWN_MS = 1200;
 
@@ -1278,6 +1279,13 @@
 	    }
 
 	    async function applyRealtimeEegResult(result) {
+	      if (!realtimeSessionActive) {
+	        const freq = Number(result.recognized_freq ?? result.freq);
+	        const label = result.command_name || result.target || result.command_hex || "未命名结果";
+	        addLog("sys", `实时联动已停止，忽略 MATLAB 结果: ${label}${Number.isFinite(freq) ? ` / ${freq.toFixed(2)} Hz` : ""}`);
+	        return;
+	      }
+
 	      const command = findSsvEPCommandFromRealtime(result);
 	      const freq = Number(result.recognized_freq ?? result.freq ?? command?.freq);
 	      if (!command) {
@@ -1314,6 +1322,9 @@
 	          commands: bridgePayloadCommands(),
 	          trial: `session-${Date.now()}`
 	        });
+	        realtimeSessionActive = true;
+	        lastRealtimeCommandId = "";
+	        lastRealtimeCommandAt = 0;
 	        setBridgeStatus("实时联动已启动", "被试页开始呈现后，MATLAB 可持续 POST 识别结果。");
 	        addLog("sys", "实时联动已启动");
 	      } catch (error) {
@@ -1324,6 +1335,7 @@
 	    async function stopRealtimeSession() {
 	      try {
 	        await postJson("/api/session/stop", { reason: "manual" });
+	        realtimeSessionActive = false;
 	        setBridgeStatus("实时联动已停止", "被试页已收到停止事件。");
 	        addLog("sys", "实时联动已停止");
 	      } catch (error) {
@@ -1355,15 +1367,20 @@
 	      eventSource.addEventListener("state", (event) => {
 	        const payload = JSON.parse(event.data);
 	        lanIps = payload.lan_ips || [];
+	        realtimeSessionActive = Boolean(payload.state?.session?.active);
 	        refreshMatlabPostUrl();
 	      });
 	      eventSource.addEventListener("config_update", () => {
 	        addLog("sys", "刺激配置已同步到服务端");
 	      });
 	      eventSource.addEventListener("session_start", () => {
+	        realtimeSessionActive = true;
+	        lastRealtimeCommandId = "";
+	        lastRealtimeCommandAt = 0;
 	        setBridgeStatus("实时联动已启动", "控制页正在监听 MATLAB 实时识别结果。");
 	      });
 	      eventSource.addEventListener("session_stop", () => {
+	        realtimeSessionActive = false;
 	        setBridgeStatus("实时联动已停止", "控制页仍保持监听，可再次开始。");
 	      });
 	      eventSource.addEventListener("stim_onset", (event) => {

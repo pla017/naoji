@@ -3,7 +3,7 @@ clc; clear; close all;
 dataFile = fullfile(fileparts(mfilename('fullpath')), 'ts-35-fbcca_10311619DATA_online.mat');
 load(dataFile);
 
-data_index = 4;
+data_index = 3;
 Fs = 1200;
 len_delay = 0;
 nn = 3;
