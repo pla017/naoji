@@ -1372,7 +1372,11 @@
 	      });
 	      eventSource.addEventListener("eeg_result", async (event) => {
 	        try {
-	          await applyRealtimeEegResult(JSON.parse(event.data));
+	          const result = JSON.parse(event.data);
+	          const freq = Number(result.recognized_freq ?? result.freq);
+	          const label = result.command_name || result.target || result.command_hex || "未命名结果";
+	          addLog("rx", `收到 MATLAB 实时结果: ${label}${Number.isFinite(freq) ? ` / ${freq.toFixed(2)} Hz` : ""}`);
+	          await applyRealtimeEegResult(result);
 	        } catch (error) {
 	          addLog("err", error.message || String(error));
 	        }

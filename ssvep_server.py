@@ -494,6 +494,14 @@ class Handler(SimpleHTTPRequestHandler):
             with STATE_LOCK:
                 APP_STATE["last_result"] = result
             subscribers = broadcast("eeg_result", result)
+            print(
+                "EEG result received: "
+                f"target={result.get('target', '')} "
+                f"freq={result.get('recognized_freq', '')} "
+                f"confidence={result.get('confidence_ratio', '')} "
+                f"subscribers={subscribers}",
+                flush=True,
+            )
             self.send_json(200, {"ok": True, "subscribers": subscribers, "result": result})
         except Exception as error:
             self.send_json(400, {"ok": False, "error": str(error)})
