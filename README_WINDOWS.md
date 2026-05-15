@@ -83,4 +83,10 @@ notify_web_result(serverUrl, result);
 logs\start_windows.log
 ```
 
-日志里会记录启动时间、工作目录、使用的 Python 命令、控制页地址，以及 Python/服务端报错信息。
+新版启动脚本会自动拉起一个不会立即关闭的命令行窗口。日志里会记录启动时间、工作目录、使用的 Python 命令、控制页地址，以及 Python/服务端报错信息。
+
+如果项目目录没有写入权限，日志会写到 Windows 临时目录：
+
+```text
+%TEMP%\naoji_start_windows.log
+```

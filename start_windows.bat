@@ -1,4 +1,11 @@
 @echo off
+
+if not defined NAOJI_KEEP_WINDOW (
+  set "NAOJI_KEEP_WINDOW=1"
+  start "SSVEP Windows Launcher" cmd /k ""%~f0" %*"
+  exit /b
+)
+
 setlocal
 chcp 65001 >nul 2>nul
 cd /d "%~dp0"
@@ -7,8 +14,11 @@ set "SCRIPT=%~dp0launcher.py"
 set "SERVER=%~dp0ssvep_server.py"
 set "LOG_DIR=%~dp0logs"
 set "LOG_FILE=%LOG_DIR%\start_windows.log"
+set "TEMP_LOG_FILE=%TEMP%\naoji_start_windows.log"
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>nul
+>> "%LOG_FILE%" echo. 2>nul
+if errorlevel 1 set "LOG_FILE=%TEMP_LOG_FILE%"
 set "NAOJI_LOG_FILE=%LOG_FILE%"
 
 call :log ""
