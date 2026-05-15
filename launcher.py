@@ -16,6 +16,46 @@ VENV_DIR = ROOT / ".venv"
 REQUIREMENTS_FILE = ROOT / "requirements.txt"
 REQUIREMENTS_STAMP = VENV_DIR / ".requirements.sha256"
 MIN_PYTHON = (3, 10)
+LOG_HANDLE = None
+
+
+class TeeStream:
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for stream in self.streams:
+            stream.write(data)
+            stream.flush()
+        return len(data)
+
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self.streams[0], name)
+
+
+def configure_logging():
+    global LOG_HANDLE
+    if LOG_HANDLE:
+        return
+
+    log_file = os.environ.get("NAOJI_LOG_FILE")
+    if not log_file:
+        log_file = str(ROOT / "logs" / "start_windows.log")
+
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    LOG_HANDLE = log_path.open("a", encoding="utf-8", buffering=1)
+    sys.stdout = TeeStream(sys.__stdout__, LOG_HANDLE)
+    sys.stderr = TeeStream(sys.__stderr__, LOG_HANDLE)
+
+    info("")
+    info(f"launcher.py 启动时间：{time.strftime('%Y-%m-%d %H:%M:%S')}")
+    info(f"Python：{sys.executable}")
+    info(f"日志文件：{log_path}")
 
 
 def info(message):
@@ -25,6 +65,33 @@ def info(message):
 def fail(message, code=1):
     info(message)
     raise SystemExit(code)
+
+
+def run_logged_command(command, env=None):
+    process = subprocess.Popen(
+        command,
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+    )
+    try:
+        assert process.stdout is not None
+        for line in process.stdout:
+            print(line, end="", flush=True)
+        return_code = process.wait()
+    except KeyboardInterrupt:
+        info("收到 Ctrl+C，正在停止当前任务 ...")
+        process.terminate()
+        process.wait()
+        raise
+
+    if return_code != 0:
+        raise subprocess.CalledProcessError(return_code, command)
 
 
 def check_python_version():
@@ -47,7 +114,7 @@ def ensure_venv():
         return python_bin
 
     info("首次启动，正在创建虚拟环境 .venv ...")
-    subprocess.check_call([sys.executable, "-m", "venv", str(VENV_DIR)], cwd=ROOT)
+    run_logged_command([sys.executable, "-m", "venv", str(VENV_DIR)])
     if not python_bin.exists():
         fail("虚拟环境创建失败，未找到 venv 里的 Python。")
     return python_bin
@@ -80,7 +147,7 @@ def read_effective_requirements():
 
 
 def ensure_pip():
-    subprocess.check_call([sys.executable, "-m", "ensurepip", "--upgrade"], cwd=ROOT)
+    run_logged_command([sys.executable, "-m", "ensurepip", "--upgrade"])
 
 
 def install_requirements_if_needed():
@@ -102,7 +169,7 @@ def install_requirements_if_needed():
 
     info("正在检查并安装 Python 依赖 ...")
     ensure_pip()
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", str(REQUIREMENTS_FILE)], cwd=ROOT)
+    run_logged_command([sys.executable, "-m", "pip", "install", "-r", str(REQUIREMENTS_FILE)])
     REQUIREMENTS_STAMP.write_text(digest, encoding="utf-8")
     info("依赖安装完成。")
 
@@ -153,10 +220,15 @@ def open_browser(url):
 def run_server(host, port, matlab_bin=None):
     command = [sys.executable, str(ROOT / "ssvep_server.py"), "--host", host, "--port", str(port)]
     env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     if matlab_bin:
         env["MATLAB_BIN"] = matlab_bin
         command.extend(["--matlab", matlab_bin])
-    subprocess.check_call(command, cwd=ROOT, env=env)
+    try:
+        run_logged_command(command, env=env)
+    except KeyboardInterrupt:
+        info("收到 Ctrl+C，正在停止服务 ...")
 
 
 def parse_args():
@@ -169,6 +241,7 @@ def parse_args():
 
 
 def main():
+    configure_logging()
     args = parse_args()
     check_python_version()
     relaunch_in_venv()

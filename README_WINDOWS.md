@@ -18,6 +18,7 @@
 - 按 `requirements.txt` 自动安装缺失依赖
 - 自动寻找空闲端口
 - 自动打开控制页面
+- 写入启动日志 `logs/start_windows.log`
 
 如果 MATLAB、被试页、控制页都在同一台电脑，默认启动即可。
 
@@ -73,3 +74,13 @@ notify_web_result(serverUrl, result);
 ## 5. 停止服务
 
 关闭启动脚本对应的终端窗口，或者在窗口里按 `Ctrl + C`。
+
+## 6. 启动失败或闪退
+
+如果双击后窗口一闪而过，先打开项目目录里的：
+
+```text
+logs\start_windows.log
+```
+
+日志里会记录启动时间、工作目录、使用的 Python 命令、控制页地址，以及 Python/服务端报错信息。
