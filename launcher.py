@@ -140,9 +140,12 @@ def open_browser(url):
     def _worker():
         time.sleep(1.0)
         try:
-            webbrowser.open(url)
-        except Exception:
-            pass
+            opened = webbrowser.open(url, new=2)
+            if not opened and os.name == "nt":
+                os.startfile(url)
+        except Exception as error:
+            info(f"自动打开浏览器失败，请手动打开：{url}")
+            info(f"浏览器错误：{error}")
 
     threading.Thread(target=_worker, daemon=True).start()
 
