@@ -89,18 +89,22 @@ result = struct( ...
 );
 
 try
-    options = weboptions( ...
-        'MediaType', 'application/json', ...
-        'Timeout', 5);
-    response = webwrite(webBridgeUrl, result, options);
-    if isstruct(response) && isfield(response, 'ok') && response.ok
+    fprintf('web_notify_url: %s\n', webBridgeUrl);
+    fprintf('web_notify_func: %s\n', which('notify_web_result'));
+    response = notify_web_result(webBridgeUrl, result);
+    if isfield(response, 'json') && isstruct(response.json) ...
+            && isfield(response.json, 'ok') && response.json.ok
         fprintf('web_notify: ok -> %s\n', webBridgeUrl);
-        if isfield(response, 'subscribers')
-            fprintf('web_notify_subscribers: %d\n', response.subscribers);
+        if isfield(response.json, 'subscribers')
+            fprintf('web_notify_subscribers: %d\n', response.json.subscribers);
         end
     else
         fprintf('web_notify: sent -> %s\n', webBridgeUrl);
     end
 catch error
     fprintf(2, 'web_notify_error: %s\n', error.message);
+    fprintf(2, 'web_notify_error_id: %s\n', error.identifier);
+    if ~isempty(error.stack)
+        fprintf(2, 'web_notify_error_at: %s:%d\n', error.stack(1).file, error.stack(1).line);
+    end
 end

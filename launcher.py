@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
 REQUIREMENTS_FILE = ROOT / "requirements.txt"
 REQUIREMENTS_STAMP = VENV_DIR / ".requirements.sha256"
+WEB_BRIDGE_URL_FILE = ROOT / "web_bridge_url.txt"
 MIN_PYTHON = (3, 10)
 LOG_HANDLE = None
 
@@ -217,6 +218,10 @@ def open_browser(url):
     threading.Thread(target=_worker, daemon=True).start()
 
 
+def write_web_bridge_url(url):
+    WEB_BRIDGE_URL_FILE.write_text(url + "\n", encoding="utf-8")
+
+
 def run_server(host, port, matlab_bin=None):
     command = [sys.executable, str(ROOT / "ssvep_server.py"), "--host", host, "--port", str(port)]
     env = os.environ.copy()
@@ -251,20 +256,23 @@ def main():
     browser_host = "127.0.0.1" if args.host in {"0.0.0.0", "::"} else args.host
     url = f"http://{browser_host}:{port}/index.html"
     stimulus_url = f"http://{browser_host}:{port}/stimulus.html"
+    eeg_result_url = f"http://{browser_host}:{port}/api/eeg_result"
     lan_ips = detect_lan_ips()
+    write_web_bridge_url(eeg_result_url)
 
     info("")
     info("气动手套 SSVEP 控制台准备启动")
     info(f"工作目录：{ROOT}")
     info(f"控制页：{url}")
     info(f"被试页：{stimulus_url}")
+    info(f"EEG_RESULT_URL={eeg_result_url}")
     if args.host in {"0.0.0.0", "::"} and lan_ips:
         for ip in lan_ips:
             info(f"局域网控制页：http://{ip}:{port}/index.html")
             info(f"局域网被试页：http://{ip}:{port}/stimulus.html")
             info(f"MATLAB 上报地址：http://{ip}:{port}/api/eeg_result")
     else:
-        info(f"MATLAB 本机上报地址：http://{browser_host}:{port}/api/eeg_result")
+        info(f"MATLAB 本机上报地址：{eeg_result_url}")
     info(f"离线测试接口：http://{browser_host}:{port}/api/recognize")
     info(f"健康检查：http://{browser_host}:{port}/api/health")
     if matlab_bin:
