@@ -23,11 +23,11 @@ CONFIG_SCRIPT = ROOT / "write_ssvep_config.m"
 DEFAULT_COMMANDS = [
     {"id": "open", "name": "手张开", "symbol": "开", "freq": 8.50, "hex": "A5 5A 02 0B 0F 00 00 00 00 00 E4"},
     {"id": "close", "name": "手握紧", "symbol": "握", "freq": 8.75, "hex": "A5 5A 02 0B 0F 01 01 01 01 01 DF"},
-    {"id": "thumb", "name": "大拇指屈曲", "symbol": "拇", "freq": 9.00, "hex": "A5 5A 02 0B 0F 01 00 00 00 00 E3"},
-    {"id": "index", "name": "食指屈曲", "symbol": "食", "freq": 9.25, "hex": "A5 5A 02 0B 0F 00 01 00 00 00 E3"},
-    {"id": "middle", "name": "中指屈曲", "symbol": "中", "freq": 9.50, "hex": "A5 5A 02 0B 0F 00 00 01 00 00 E3"},
-    {"id": "ring", "name": "无名指屈曲", "symbol": "名", "freq": 9.75, "hex": "A5 5A 02 0B 0F 00 00 00 01 00 E3"},
-    {"id": "little", "name": "小拇指屈曲", "symbol": "小", "freq": 10.00, "hex": "A5 5A 02 0B 0F 00 00 00 00 01 E3"},
+    {"id": "thumb", "name": "大拇指屈曲", "symbol": "拇", "freq": 9.00, "hex": "A5 5A 02 0B 0F 01 02 02 02 02 DB"},
+    {"id": "index", "name": "食指屈曲", "symbol": "食", "freq": 9.25, "hex": "A5 5A 02 0B 0F 02 01 02 02 02 DB"},
+    {"id": "middle", "name": "中指屈曲", "symbol": "中", "freq": 9.50, "hex": "A5 5A 02 0B 0F 02 02 01 02 02 DB"},
+    {"id": "ring", "name": "无名指屈曲", "symbol": "名", "freq": 9.75, "hex": "A5 5A 02 0B 0F 02 02 02 01 02 DB"},
+    {"id": "little", "name": "小拇指屈曲", "symbol": "小", "freq": 10.00, "hex": "A5 5A 02 0B 0F 02 02 02 02 01 DB"},
     {"id": "start", "name": "开始", "symbol": "启", "freq": 10.25, "hex": "A5 5A 02 07 0A 01 EC", "skipPrime": True},
     {"id": "pause", "name": "暂停", "symbol": "停", "freq": 10.50, "hex": "A5 5A 02 07 0A 00 ED", "skipPrime": True},
 ]

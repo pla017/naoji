@@ -774,6 +774,9 @@
 
     const FINGER_NAMES = ["大拇指", "食指", "中指", "无名指", "小拇指"];
     const FINGER_PREFIX = [0xA5, 0x5A, 0x02, 0x0B, 0x0F];
+    const FINGER_EXTEND = 0x00;
+    const FINGER_BEND = 0x01;
+    const FINGER_KEEP = 0x02;
 
     function checksumValue(bytes) {
       const sum = bytes.reduce((total, byte) => (total + byte) & 0xff, 0);
@@ -789,19 +792,28 @@
       return bytesToHex([...content, checksumValue(content)]);
     }
 
+    function singleFingerStates(index, value) {
+      return FINGER_NAMES.map((_, fingerIndex) => fingerIndex === index ? value : FINGER_KEEP);
+    }
+
+    function buildSingleFingerHex(index, value = FINGER_BEND) {
+      return buildFingerHex(singleFingerStates(index, value));
+    }
+
     const SSVEP_COMMANDS = [
       { id: "open", name: "手张开", symbol: "开", freq: 8.50, hex: "A5 5A 02 0B 0F 00 00 00 00 00 E4" },
       { id: "close", name: "手握紧", symbol: "握", freq: 8.75, hex: "A5 5A 02 0B 0F 01 01 01 01 01 DF" },
-      { id: "thumb", name: "大拇指屈曲", symbol: "拇", freq: 9.00, hex: buildFingerHex([1, 0, 0, 0, 0]) },
-      { id: "index", name: "食指屈曲", symbol: "食", freq: 9.25, hex: buildFingerHex([0, 1, 0, 0, 0]) },
-      { id: "middle", name: "中指屈曲", symbol: "中", freq: 9.50, hex: buildFingerHex([0, 0, 1, 0, 0]) },
-      { id: "ring", name: "无名指屈曲", symbol: "名", freq: 9.75, hex: buildFingerHex([0, 0, 0, 1, 0]) },
-      { id: "little", name: "小拇指屈曲", symbol: "小", freq: 10.00, hex: buildFingerHex([0, 0, 0, 0, 1]) },
-      { id: "start", name: "开始", symbol: "启", freq: 10.25, hex: "A5 5A 02 07 0A 01 EC", skipPrime: true },
-      { id: "pause", name: "暂停", symbol: "停", freq: 10.50, hex: "A5 5A 02 07 0A 00 ED", skipPrime: true }
+      { id: "thumb", name: "大拇指屈曲", symbol: "拇", freq: 9.00, hex: buildSingleFingerHex(0), fingerIndex: 0 },
+      { id: "index", name: "食指屈曲", symbol: "食", freq: 9.25, hex: buildSingleFingerHex(1), fingerIndex: 1 },
+      { id: "middle", name: "中指屈曲", symbol: "中", freq: 9.50, hex: buildSingleFingerHex(2), fingerIndex: 2 },
+      { id: "ring", name: "无名指屈曲", symbol: "名", freq: 9.75, hex: buildSingleFingerHex(3), fingerIndex: 3 },
+      { id: "little", name: "小拇指屈曲", symbol: "小", freq: 10.00, hex: buildSingleFingerHex(4), fingerIndex: 4 },
+      { id: "start", name: "开始", symbol: "启", freq: 10.25, hex: "A5 5A 02 07 0A 01 EC", skipPrime: true, repeat: false },
+      { id: "pause", name: "暂停", symbol: "停", freq: 10.50, hex: "A5 5A 02 07 0A 00 ED", skipPrime: true, repeat: false }
     ];
 	    const CONTROL_MODE_HEX = "A5 5A 02 07 06 07 EA";
 	    const START_HEX = "A5 5A 02 07 0A 01 EC";
+	    const PAUSE_HEX = "A5 5A 02 07 0A 00 ED";
 	    const FREQ_TOLERANCE = 0.2;
 
     let device = null;
@@ -837,6 +849,8 @@
 	    let lastRealtimeCommandAt = 0;
 	    let realtimeSessionActive = false;
 	    let lanIps = [];
+	    let bleTaskQueue = Promise.resolve();
+	    let bleTaskPendingCount = 0;
 	    const REALTIME_SEND_COOLDOWN_MS = 1200;
 
     function loadFrequencySettings() {
@@ -1009,8 +1023,24 @@
         await writeCharacteristic.writeValueWithResponse(payload);
       } else {
         await writeCharacteristic.writeValue(payload);
-      }
+	      }
 	      addLog("tx", `${label}: ${toHex(payload)}`);
+	    }
+
+	    function enqueueBleTask(task, label = "蓝牙指令") {
+	      const hadPendingTask = bleTaskPendingCount > 0;
+	      bleTaskPendingCount += 1;
+	      if (hadPendingTask) {
+	        addLog("sys", `${label} 已排队发送`);
+	      }
+
+	      const currentTask = bleTaskQueue
+	        .catch(() => {})
+	        .then(() => task());
+	      bleTaskQueue = currentTask.catch(() => {});
+	      return currentTask.finally(() => {
+	        bleTaskPendingCount = Math.max(0, bleTaskPendingCount - 1);
+	      });
 	    }
 
 	    function wait(ms) {
@@ -1018,7 +1048,7 @@
 	    }
 
 	    async function ensureControlPrimed() {
-	      if (!autoPrimeControl.checked) {
+	      if (!autoPrimeControl.checked || controlPrimed) {
 	        return;
 	      }
 	      await writeBytes(parseHex(CONTROL_MODE_HEX), "自动接管模式");
@@ -1026,6 +1056,23 @@
 	      await writeBytes(parseHex(START_HEX), "自动开始");
 	      await wait(250);
 	      controlPrimed = true;
+	    }
+
+	    function applyControlPrimedState(command) {
+	      if (!command) {
+	        return;
+	      }
+	      if (command.id === "pause" || command.hex === PAUSE_HEX) {
+	        controlPrimed = false;
+	        return;
+	      }
+	      if (command.id === "start" || command.hex === START_HEX) {
+	        controlPrimed = true;
+	        return;
+	      }
+	      if (command.hex === CONTROL_MODE_HEX) {
+	        controlPrimed = false;
+	      }
 	    }
 
     function buildDeviceRequestOptions() {
@@ -1121,19 +1168,59 @@
       addLog("rx", toHex(bytes));
     }
 
+    function getFingerInputs() {
+      return Array.from(document.querySelectorAll("[data-finger]"));
+    }
+
+    function getFingerSelectionSummary() {
+      const inputs = getFingerInputs();
+      const selectedIndexes = [];
+      inputs.forEach((input, index) => {
+        if (input.checked) {
+          selectedIndexes.push(index);
+        }
+      });
+      return {
+        inputs,
+        selectedIndexes,
+        isSingle: selectedIndexes.length === 1,
+      };
+    }
+
     function buildFingerFrame() {
-      const states = Array.from(document.querySelectorAll("[data-finger]"), (input) => input.checked ? 1 : 0);
+      const { inputs, isSingle } = getFingerSelectionSummary();
+      const states = inputs.map((input) => {
+        if (input.checked) {
+          return FINGER_BEND;
+        }
+        return isSingle ? FINGER_KEEP : FINGER_EXTEND;
+      });
       const content = [...FINGER_PREFIX, ...states];
       return new Uint8Array([...content, checksum(content)]);
     }
 
+    function buildSingleFingerAction(index) {
+      const extendContent = [...FINGER_PREFIX, ...singleFingerStates(index, FINGER_EXTEND)];
+      const bendContent = [...FINGER_PREFIX, ...singleFingerStates(index, FINGER_BEND)];
+      return {
+        extend: new Uint8Array([...extendContent, checksum(extendContent)]),
+        bend: new Uint8Array([...bendContent, checksum(bendContent)]),
+      };
+    }
+
     function updateFingerPreview() {
+      const { inputs, isSingle } = getFingerSelectionSummary();
       const frame = buildFingerFrame();
       $("#fingerBits").textContent = toHex(frame.slice(5, 10));
       $("#fingerFrame").textContent = toHex(frame);
-      document.querySelectorAll(".finger").forEach((label) => {
+      document.querySelectorAll(".finger").forEach((label, index) => {
         const input = label.querySelector("input");
-        label.querySelector(".finger-state").textContent = input.checked ? "屈曲" : "伸展";
+        const stateLabel = label.querySelector(".finger-state");
+        if (input.checked) {
+          stateLabel.textContent = "屈曲";
+        } else {
+          stateLabel.textContent = isSingle ? "保持" : "伸展";
+        }
       });
     }
 
@@ -1216,6 +1303,15 @@
 	      ssvepResultHex.textContent = command.hex;
 	    }
 
+	    async function sendSingleFingerAction(index, label) {
+	      const { extend, bend } = buildSingleFingerAction(index);
+	      await writeBytes(extend, `${label} 预伸展`);
+	      await wait(220);
+	      await writeBytes(bend, `${label} 单指屈曲`);
+	      await wait(180);
+	      await writeBytes(bend, `${label} 单指屈曲重发`);
+	    }
+
 	    async function executeSsvEPCommand(command, source = "算法识别") {
 	      updateSsvEPResult(command, source);
 	      if (!autoSendSsvEP.checked) {
@@ -1225,17 +1321,25 @@
 	      if (!writeCharacteristic) {
 	        addLog("sys", `${source}: ${command.freq.toFixed(2)} Hz 映射为 ${command.name}，蓝牙未连接`);
 	        return;
-      }
-      try {
-        if (!command.skipPrime) {
-          await ensureControlPrimed();
-        }
-        await writeBytes(parseHex(command.hex), `SSVEP ${command.name}`);
-        await wait(180);
-        await writeBytes(parseHex(command.hex), `SSVEP ${command.name} 重发`);
-	      } catch (error) {
-	        addLog("err", error.message || String(error));
 	      }
+
+	      return enqueueBleTask(async () => {
+	        if (!command.skipPrime) {
+	          await ensureControlPrimed();
+	        }
+
+	        if (typeof command.fingerIndex === "number") {
+	          await sendSingleFingerAction(command.fingerIndex, `SSVEP ${command.name}`);
+	        } else {
+	          await writeBytes(parseHex(command.hex), `SSVEP ${command.name}`);
+	          if (command.repeat !== false) {
+	            await wait(180);
+	            await writeBytes(parseHex(command.hex), `SSVEP ${command.name} 重发`);
+	          }
+	        }
+
+	        applyControlPrimedState(command);
+	      }, `SSVEP ${command.name}`);
 	    }
 
 	    async function testCloseOpenSequence() {
@@ -1244,10 +1348,13 @@
 	        return;
 	      }
 	      try {
-	        await ensureControlPrimed();
-	        await writeBytes(parseHex(SSVEP_COMMANDS[1].hex), "动作测试 手握紧");
-	        await wait(1200);
-	        await writeBytes(parseHex(SSVEP_COMMANDS[0].hex), "动作测试 手张开");
+	        await enqueueBleTask(async () => {
+	          await ensureControlPrimed();
+	          await writeBytes(parseHex(SSVEP_COMMANDS[1].hex), "动作测试 手握紧");
+	          await wait(1200);
+	          await writeBytes(parseHex(SSVEP_COMMANDS[0].hex), "动作测试 手张开");
+	          applyControlPrimedState(SSVEP_COMMANDS[0]);
+	        }, "动作测试");
 	      } catch (error) {
 	        addLog("err", error.message || String(error));
 	      }
@@ -1446,10 +1553,10 @@
 	        button.querySelector(".hex").textContent = command.hex;
 	        button.addEventListener("click", async () => {
 	          try {
-	            await writeBytes(parseHex(command.hex), command.name);
-	            if (command.name === "接管模式" || command.name === "开始") {
-	              controlPrimed = true;
-	            }
+	            await enqueueBleTask(async () => {
+	              await writeBytes(parseHex(command.hex), command.name);
+	              applyControlPrimedState(command);
+	            }, command.name);
 	          } catch (error) {
 	            addLog("err", error.message || String(error));
 	          }
@@ -1500,7 +1607,18 @@
     $("#sendFingersBtn").disabled = true;
     $("#sendFingersBtn").addEventListener("click", async () => {
       try {
-        await writeBytes(buildFingerFrame(), "五指控制");
+        const { selectedIndexes, isSingle } = getFingerSelectionSummary();
+        if (isSingle) {
+          await enqueueBleTask(async () => {
+            await ensureControlPrimed();
+            await sendSingleFingerAction(selectedIndexes[0], `单指控制 ${FINGER_NAMES[selectedIndexes[0]]}`);
+          }, "单指控制");
+          return;
+        }
+        await enqueueBleTask(async () => {
+          await ensureControlPrimed();
+          await writeBytes(buildFingerFrame(), "五指控制");
+        }, "五指控制");
       } catch (error) {
         addLog("err", error.message || String(error));
       }
@@ -1509,7 +1627,9 @@
     $("#sendCustomBtn").disabled = true;
     $("#sendCustomBtn").addEventListener("click", async () => {
       try {
-        await writeBytes(parseHex($("#customHex").value), "自定义");
+        await enqueueBleTask(async () => {
+          await writeBytes(parseHex($("#customHex").value), "自定义");
+        }, "自定义");
       } catch (error) {
         addLog("err", error.message || String(error));
       }
