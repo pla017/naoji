@@ -91,6 +91,22 @@
       padding: 24px 0;
     }
 
+    .mi-hint {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.8;
+    }
+
+    .mi-hint strong {
+      display: block;
+      color: var(--accent);
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
     .target {
       display: grid;
       place-items: center;
@@ -190,12 +206,19 @@
       { id: "pause", name: "暂停", symbol: "停", freq: 10.50 }
     ];
 
+    const MI_DEFAULT_COMMANDS = [
+      { id: "mi_close", name: "全部握紧", symbol: "紧" },
+      { id: "mi_open", name: "全部松开", symbol: "松" },
+      { id: "mi_thumb", name: "大拇指张开", symbol: "拇" }
+    ];
+
     const stage = document.querySelector("#stage");
     const targetsEl = document.querySelector("#targets");
     const statusText = document.querySelector("#statusText");
     const metaText = document.querySelector("#metaText");
 
     let commands = DEFAULT_COMMANDS;
+    let currentMode = "ssvep";
     let animationId = 0;
     let startTime = 0;
     let running = false;
@@ -203,11 +226,19 @@
 
     function renderTargets() {
       targetsEl.innerHTML = "";
+      if (currentMode === "mi") {
+        const hint = document.createElement("div");
+        hint.className = "mi-hint";
+        hint.innerHTML = "<strong>运动想象模式</strong>根据控制页发出的指令，想象对应的手部动作。";
+        targetsEl.append(hint);
+      }
       commands.forEach((command) => {
         const target = document.createElement("section");
         target.className = "target";
         target.dataset.targetId = command.id;
-        target.dataset.freq = command.freq;
+        if (command.freq != null) {
+          target.dataset.freq = command.freq;
+        }
         target.innerHTML = `
           <span class="symbol"></span>
           <span class="name"></span>
@@ -215,7 +246,11 @@
         `;
         target.querySelector(".symbol").textContent = command.symbol || command.name.slice(0, 1);
         target.querySelector(".name").textContent = command.name;
-        target.querySelector(".freq").textContent = `${Number(command.freq).toFixed(2)} Hz`;
+        if (command.freq != null) {
+          target.querySelector(".freq").textContent = `${Number(command.freq).toFixed(2)} Hz`;
+        } else {
+          target.querySelector(".freq").textContent = currentMode === "mi" ? "运动想象" : "—";
+        }
         targetsEl.append(target);
       });
     }
@@ -234,9 +269,14 @@
     }
 
     function animate(now) {
+      if (currentMode === "mi") {
+        animationId = window.requestAnimationFrame(animate);
+        return;
+      }
       const elapsedSeconds = (now - startTime) / 1000;
       document.querySelectorAll(".target").forEach((target) => {
         const freq = Number(target.dataset.freq);
+        if (!Number.isFinite(freq)) return;
         const isOn = Math.sin(2 * Math.PI * freq * elapsedSeconds) >= 0;
         target.classList.toggle("is-on", isOn);
       });
@@ -258,14 +298,20 @@
     }
 
     function startStimulus(config = {}) {
-      commands = Array.isArray(config.commands) && config.commands.length ? config.commands : commands;
+      if (config.mode) {
+        currentMode = config.mode;
+        commands = currentMode === "mi" ? MI_DEFAULT_COMMANDS : DEFAULT_COMMANDS;
+      }
+      if (Array.isArray(config.commands) && config.commands.length) {
+        commands = config.commands;
+      }
       renderTargets();
       stopLocal(false);
       running = true;
       stage.classList.remove("idle");
       stage.classList.add("running");
-      statusText.textContent = "正在呈现";
-      metaText.textContent = `${commands.length} 个目标`;
+      statusText.textContent = currentMode === "mi" ? "运动想象呈现中" : "正在呈现";
+      metaText.textContent = `${commands.length} 个目标${currentMode === "mi" ? "（运动想象）" : ""}`;
       startTime = performance.now();
       animationId = window.requestAnimationFrame(animate);
       reportStimOnset();
@@ -292,8 +338,11 @@
         const payload = await response.json();
         if (payload.state?.config?.commands) {
           commands = payload.state.config.commands;
-          renderTargets();
         }
+        if (payload.state?.config?.mode) {
+          currentMode = payload.state.config.mode;
+        }
+        renderTargets();
         if (payload.state?.session?.active) {
           startStimulus(payload.state.config);
         }
@@ -322,15 +371,21 @@
         const payload = JSON.parse(event.data);
         if (payload.state?.config?.commands) {
           commands = payload.state.config.commands;
-          renderTargets();
         }
+        if (payload.state?.config?.mode) {
+          currentMode = payload.state.config.mode;
+        }
+        renderTargets();
       });
       eventSource.addEventListener("config_update", (event) => {
         const config = JSON.parse(event.data);
         if (Array.isArray(config.commands)) {
           commands = config.commands;
-          renderTargets();
         }
+        if (config.mode) {
+          currentMode = config.mode;
+        }
+        renderTargets();
       });
       eventSource.addEventListener("session_start", (event) => {
         const payload = JSON.parse(event.data);

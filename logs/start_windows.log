@@ -1,0 +1,84 @@
+
+launcher.py 启动时间：2026-06-15 14:47:26
+Python：/Applications/ServBay/package/python/3.13/3.13.13/Python.framework/Versions/3.13/bin/python3
+日志文件：/Users/jack/MyCode/naoji/logs/start_windows.log
+requirements.txt 当前没有额外依赖，跳过安装。
+
+气动手套 SSVEP 控制台准备启动
+工作目录：/Users/jack/MyCode/naoji
+控制页：http://127.0.0.1:8001/index.html
+被试页：http://127.0.0.1:8001/stimulus.html
+EEG_RESULT_URL=http://127.0.0.1:8001/api/eeg_result
+MATLAB 本机上报地址：http://127.0.0.1:8001/api/eeg_result
+离线测试接口：http://127.0.0.1:8001/api/recognize
+健康检查：http://127.0.0.1:8001/api/health
+MATLAB：/Users/jack/.local/bin/matlab
+提示：Web Bluetooth 建议使用 Chrome 或 Edge 打开。
+停止服务：在当前窗口按 Ctrl+C
+
+SSVEP server running at http://127.0.0.1:8001/index.html
+Recognition API: /api/recognize
+Realtime events: /api/events
+MATLAB result POST: /api/eeg_result
+Health API: /api/health
+Detected MATLAB: /Users/jack/.local/bin/matlab
+127.0.0.1 - - [15/Jun/2026 14:47:28] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 14:47:28] code 404, message File not found
+127.0.0.1 - - [15/Jun/2026 14:47:28] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [15/Jun/2026 14:47:49] "GET /index.html HTTP/1.1" 304 -
+127.0.0.1 - - [15/Jun/2026 14:48:00] code 404, message File not found
+127.0.0.1 - - [15/Jun/2026 14:48:00] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 -
+127.0.0.1 - - [15/Jun/2026 14:49:57] "GET /index.html HTTP/1.1" 304 -
+127.0.0.1 - - [15/Jun/2026 14:51:10] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 14:51:10] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 14:51:10] "GET /api/events HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 14:51:12] "POST /api/config HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 14:51:12] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 14:51:13] "POST /api/config HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 14:51:19] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 14:51:19] "POST /api/config HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 14:51:35] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 14:51:36] "POST /api/config HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 14:53:00] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 14:53:01] "POST /api/config HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 14:53:01] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 14:53:02] "POST /api/config HTTP/1.1" 400 -
+EEG result received: target=mi_close freq= confidence=2.0 subscribers=1
+127.0.0.1 - - [15/Jun/2026 15:03:36] "POST /api/eeg_result HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:03:50] "POST /api/session/start HTTP/1.1" 400 -
+EEG result received: target=mi_close freq= confidence=2.0 subscribers=1
+127.0.0.1 - - [15/Jun/2026 15:04:07] "POST /api/eeg_result HTTP/1.1" 200 -
+EEG result received: target=mi_close freq= confidence=2.0 subscribers=1
+127.0.0.1 - - [15/Jun/2026 15:04:29] "POST /api/eeg_result HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:05:42] "POST /api/session/start HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 15:05:44] "POST /api/session/stop HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:05:45] "POST /api/session/start HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 15:05:55] "POST /api/session/start HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 15:05:57] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:05:57] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:05:57] "GET /api/events HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:05:58] "POST /api/config HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 15:05:59] "POST /api/session/start HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 15:06:03] "GET /index.html HTTP/1.1" 304 -
+127.0.0.1 - - [15/Jun/2026 15:06:03] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:06:03] "GET /api/events HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:06:04] "POST /api/config HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 15:06:05] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:06:12] "POST /api/config HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 15:07:26] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:07:26] "POST /api/config HTTP/1.1" 400 -
+127.0.0.1 - - [15/Jun/2026 15:07:28] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jun/2026 15:07:28] "POST /api/config HTTP/1.1" 400 -
+Traceback (most recent call last):
+  File [35m"/Users/jack/MyCode/naoji/launcher.py"[0m, line [35m293[0m, in [35m<module>[0m
+    [31mmain[0m[1;31m()[0m
+    [31m~~~~[0m[1;31m^^[0m
+  File [35m"/Users/jack/MyCode/naoji/launcher.py"[0m, line [35m289[0m, in [35mmain[0m
+    [31mrun_server[0m[1;31m(args.host, port, matlab_bin=matlab_bin)[0m
+    [31m~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  File [35m"/Users/jack/MyCode/naoji/launcher.py"[0m, line [35m234[0m, in [35mrun_server[0m
+    [31mrun_logged_command[0m[1;31m(command, env=env)[0m
+    [31m~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^^^^^[0m
+  File [35m"/Users/jack/MyCode/naoji/launcher.py"[0m, line [35m95[0m, in [35mrun_logged_command[0m
+    raise subprocess.CalledProcessError(return_code, command)
+[1;35msubprocess.CalledProcessError[0m: [35mCommand '['/Applications/ServBay/package/python/3.13/3.13.13/Python.framework/Versions/3.13/bin/python3', '/Users/jack/MyCode/naoji/ssvep_server.py', '--host', '127.0.0.1', '--port', '8001', '--matlab', '/Users/jack/.local/bin/matlab']' died with <Signals.SIGTERM: 15>.[0m

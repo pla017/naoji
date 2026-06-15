@@ -132,7 +132,32 @@ def snapshot_state():
         return json.loads(json.dumps(APP_STATE, ensure_ascii=False))
 
 
-def normalize_commands(commands):
+def normalize_mode(value, default="ssvep"):
+    normalized = str(value or default).strip().lower()
+    if normalized in {"mi", "motor_imagery", "运动想象"}:
+        return "mi"
+    if normalized == "ssvep":
+        return "ssvep"
+    return default
+
+
+def infer_command_mode(commands, mode):
+    if mode == "mi":
+        return "mi"
+    if isinstance(commands, list):
+        for item in commands:
+            if not isinstance(item, dict):
+                continue
+            target_id = str(item.get("id") or item.get("target") or item.get("target_id") or "").strip()
+            if target_id.startswith("mi_"):
+                return "mi"
+            name = str(item.get("name") or item.get("command_name") or "").strip()
+            if name in {"全部握紧", "全部松开", "大拇指张开"}:
+                return "mi"
+    return mode
+
+
+def normalize_commands(commands, mode="ssvep"):
     normalized = []
     if not isinstance(commands, list):
         raise ValueError("commands 必须是数组")
@@ -141,18 +166,28 @@ def normalize_commands(commands):
         if not isinstance(item, dict):
             raise ValueError(f"commands[{index}] 必须是对象")
         name = str(item.get("name", "")).strip()
-        freq = float(item.get("freq"))
         hex_value = str(item.get("hex", "")).strip()
-        if not name or not hex_value or freq <= 0:
+        freq_value = item.get("freq")
+        if mode == "mi":
+            freq = None
+        else:
+            freq = float(freq_value)
+        if not name or not hex_value or (mode != "mi" and freq <= 0):
             raise ValueError(f"commands[{index}] 缺少 name/freq/hex")
-        normalized.append({
+        command = {
             "id": str(item.get("id") or f"target_{index + 1}"),
             "name": name,
             "symbol": str(item.get("symbol") or name[:1]),
-            "freq": freq,
             "hex": hex_value,
             "skipPrime": bool(item.get("skipPrime", False)),
-        })
+        }
+        if freq is not None:
+            command["freq"] = freq
+        if "fingerIndex" in item:
+            command["fingerIndex"] = item.get("fingerIndex")
+        if "extend" in item:
+            command["extend"] = bool(item.get("extend"))
+        normalized.append(command)
     return normalized
 
 
@@ -183,6 +218,10 @@ def normalize_eeg_result(payload):
     command_hex = result.get("command_hex", result.get("hex"))
     if command_hex is not None:
         result["command_hex"] = str(command_hex)
+
+    mode = result.get("mode", result.get("process_mode", result.get("paradigm")))
+    if mode is not None:
+        result["mode"] = normalize_mode(mode)
 
     result.setdefault("source", "matlab")
     result.setdefault("timestamp_ms", now_ms())
@@ -431,10 +470,14 @@ class Handler(SimpleHTTPRequestHandler):
     def handle_config(self):
         try:
             payload = self.read_json()
-            commands = normalize_commands(payload.get("commands", []))
+            raw_commands = payload.get("commands", [])
+            mode = normalize_mode(payload.get("mode", APP_STATE["config"].get("mode", "ssvep")))
+            mode = infer_command_mode(raw_commands, mode)
+            commands = normalize_commands(raw_commands, mode)
             with STATE_LOCK:
                 APP_STATE["config"] = {
                     **payload,
+                    "mode": mode,
                     "commands": commands,
                     "updated_at": now_ms(),
                 }
@@ -447,11 +490,14 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             payload = self.read_json()
             commands = payload.get("commands")
+            mode = normalize_mode(payload.get("mode", APP_STATE["config"].get("mode", "ssvep")))
+            mode = infer_command_mode(commands, mode)
             with STATE_LOCK:
                 if commands:
                     APP_STATE["config"] = {
                         **payload,
-                        "commands": normalize_commands(commands),
+                        "mode": mode,
+                        "commands": normalize_commands(commands, mode),
                         "updated_at": now_ms(),
                     }
                 APP_STATE["session"] = {

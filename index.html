@@ -318,6 +318,35 @@
       font-size: 18px;
     }
 
+    .mode-toggle {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .mode-toggle button {
+      min-height: 32px;
+      padding: 0 18px;
+      border: none;
+      border-radius: 0;
+      font-size: 13px;
+      font-weight: 600;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background 0.16s ease, color 0.16s ease;
+    }
+
+    .mode-toggle button.active {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .mode-toggle button:not(.active):hover {
+      background: rgba(22, 119, 255, 0.06);
+    }
+
     .frequency-settings {
       display: grid;
       gap: 12px;
@@ -640,7 +669,11 @@
 	      <div>
 	        <section>
 	          <div class="section-head">
-	            <h2>SSVEP 双目标呈现</h2>
+	            <h2 id="ssvepSectionTitle">SSVEP 目标呈现</h2>
+	            <div class="mode-toggle" id="processMode">
+	              <button data-mode="ssvep" class="active">SSVEP模式</button>
+	              <button data-mode="mi">运动想象</button>
+	            </div>
 	          </div>
 	          <div class="body ssvep-panel">
 	            <div id="ssvepTargets" class="ssvep-targets"></div>
@@ -811,10 +844,53 @@
       { id: "start", name: "开始", symbol: "启", freq: 10.25, hex: "A5 5A 02 07 0A 01 EC", skipPrime: true, repeat: false },
       { id: "pause", name: "暂停", symbol: "停", freq: 10.50, hex: "A5 5A 02 07 0A 00 ED", skipPrime: true, repeat: false }
     ];
+    const MI_COMMANDS = [
+      { id: "mi_close", name: "全部握紧", symbol: "紧", hex: "A5 5A 02 0B 0F 01 01 01 01 01 DF" },
+      { id: "mi_open", name: "全部松开", symbol: "松", hex: "A5 5A 02 0B 0F 00 00 00 00 00 E4" },
+      { id: "mi_thumb", name: "大拇指张开", symbol: "拇", hex: "A5 5A 02 0B 0F 00 02 02 02 02 E2", fingerIndex: 0, extend: true }
+    ];
 	    const CONTROL_MODE_HEX = "A5 5A 02 07 06 07 EA";
 	    const START_HEX = "A5 5A 02 07 0A 01 EC";
 	    const PAUSE_HEX = "A5 5A 02 07 0A 00 ED";
 	    const FREQ_TOLERANCE = 0.2;
+
+    let currentMode = "ssvep";
+    const SSVEP_SECTION_TITLE = {
+      ssvep: "SSVEP 目标呈现",
+      mi: "运动想象 目标呈现"
+    };
+
+    function getActiveCommands() {
+      return currentMode === "mi" ? MI_COMMANDS : SSVEP_COMMANDS;
+    }
+
+    function updateProcessMode(mode, options = {}) {
+      if (mode === currentMode) return;
+      currentMode = mode;
+      document.querySelectorAll("#processMode button").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.mode === mode);
+      });
+      document.querySelector("#ssvepSectionTitle").textContent = SSVEP_SECTION_TITLE[mode] || SSVEP_SECTION_TITLE.ssvep;
+      renderSsvEPTargets();
+      const freqSection = document.querySelector(".frequency-settings");
+      if (freqSection) freqSection.style.display = mode === "mi" ? "none" : "";
+      const recogRow = document.querySelector(".recognition-row");
+      if (recogRow) recogRow.style.display = mode === "mi" ? "none" : "";
+      if (mode === "mi") {
+        recognizedFreqEl.value = "0";
+        ssvepResultName.textContent = "等待识别";
+        ssvepResultMeta.textContent = "运动想象模式：全部握紧 / 全部松开 / 大拇指张开。";
+        ssvepResultHex.textContent = "运动想象识别结果将通过目标 ID 匹配指令。";
+      } else {
+        recognizedFreqEl.value = SSVEP_COMMANDS[0].freq.toFixed(2);
+        ssvepResultName.textContent = "等待识别";
+        ssvepResultMeta.textContent = "8.50 Hz 对应手张开，8.75 Hz 对应手握紧。";
+        ssvepResultHex.textContent = "点击“运行 CCA 识别”会调用 testCCA.m，并使用算法输出驱动指令。";
+      }
+      if (options.sync !== false) {
+        syncBridgeConfig();
+      }
+    }
 
     let device = null;
     let server = null;
@@ -848,6 +924,7 @@
 	    let lastRealtimeCommandId = "";
 	    let lastRealtimeCommandAt = 0;
 	    let realtimeSessionActive = false;
+	    let lastConfigLogKey = "";
 	    let lanIps = [];
 	    let bleTaskQueue = Promise.resolve();
 	    let bleTaskPendingCount = 0;
@@ -857,6 +934,7 @@
       try {
         const saved = JSON.parse(localStorage.getItem("ssvepCommandFrequencies") || "{}");
         SSVEP_COMMANDS.forEach((command) => {
+          if (command.id.startsWith("mi_")) return;
           const value = saved[command.id];
           if (Number.isFinite(value)) {
             command.freq = value;
@@ -869,6 +947,10 @@
     }
 
     function saveFrequencySettings() {
+      if (currentMode === "mi") {
+        addLog("sys", "运动想象模式不需要设置频率");
+        return;
+      }
       const nextValues = {};
       for (const input of document.querySelectorAll("[data-frequency-input]")) {
         const command = SSVEP_COMMANDS.find((item) => item.id === input.dataset.frequencyInput);
@@ -966,13 +1048,15 @@
     }
 
 	    function bridgePayloadCommands() {
-	      return SSVEP_COMMANDS.map(({ id, name, symbol, freq, hex, skipPrime }) => ({
+	      return getActiveCommands().map(({ id, name, symbol, freq, hex, skipPrime, fingerIndex, extend }) => ({
 	        id,
 	        name,
 	        symbol,
 	        freq,
 	        hex,
-	        skipPrime: Boolean(skipPrime)
+	        skipPrime: Boolean(skipPrime),
+	        fingerIndex: typeof fingerIndex === "number" ? fingerIndex : undefined,
+	        extend: Boolean(extend)
 	      }));
 	    }
 
@@ -1232,7 +1316,8 @@
 	    }
 
 	    function renderSsvEPTargets() {
-	      SSVEP_COMMANDS.forEach((command) => {
+	      ssvepTargetsEl.innerHTML = "";
+	      getActiveCommands().forEach((command) => {
 	        const target = document.createElement("button");
 	        target.className = "ssvep-target";
 	        target.type = "button";
@@ -1277,13 +1362,20 @@
     }
 
 	    function refreshSsvEPDisplay() {
-	      SSVEP_COMMANDS.forEach((command) => {
+	      getActiveCommands().forEach((command) => {
 	        const target = document.querySelector(`[data-ssv-ep-id="${command.id}"]`);
 	        if (target) {
-	          target.querySelector(".ssvep-chip").textContent = `${command.freq.toFixed(2)} Hz`;
+	          const chipEl = target.querySelector(".ssvep-chip");
+	          if (typeof command.freq === "number") {
+	            chipEl.textContent = `${command.freq.toFixed(2)} Hz`;
+	          } else {
+	            chipEl.textContent = currentMode === "mi" ? "运动想象" : "—";
+	          }
 	        }
 	      });
-	      ssvepResultMeta.textContent = "识别结果会按下方频率配置表映射到对应指令。";
+	      ssvepResultMeta.textContent = currentMode === "mi"
+	        ? "运动想象模式：全部握紧 / 全部松开 / 大拇指张开。"
+	        : "识别结果会按下方频率配置表映射到对应指令。";
 	    }
 
 	    function findSsvEPCommandByFrequency(freq) {
@@ -1297,9 +1389,11 @@
 	      document.querySelectorAll("[data-ssv-ep-id]").forEach((target) => {
 	        target.classList.toggle("active", target.dataset.ssvEpId === command.id);
 	      });
-	      recognizedFreqEl.value = command.freq.toFixed(2);
+	      if (typeof command.freq === "number") {
+	        recognizedFreqEl.value = command.freq.toFixed(2);
+	      }
 	      ssvepResultName.textContent = command.name;
-	      ssvepResultMeta.textContent = `${source}：${command.freq.toFixed(2)} Hz -> ${command.name}`;
+	      ssvepResultMeta.textContent = `${source}：${command.name}`;
 	      ssvepResultHex.textContent = command.hex;
 	    }
 
@@ -1315,11 +1409,11 @@
 	    async function executeSsvEPCommand(command, source = "算法识别") {
 	      updateSsvEPResult(command, source);
 	      if (!autoSendSsvEP.checked) {
-	        addLog("sys", `${source}: ${command.freq.toFixed(2)} Hz 映射为 ${command.name}，已关闭自动发送`);
+	        addLog("sys", `${source}: ${command.name}，已关闭自动发送`);
 	        return;
 	      }
 	      if (!writeCharacteristic) {
-	        addLog("sys", `${source}: ${command.freq.toFixed(2)} Hz 映射为 ${command.name}，蓝牙未连接`);
+	        addLog("sys", `${source}: ${command.name}，蓝牙未连接`);
 	        return;
 	      }
 
@@ -1329,17 +1423,24 @@
 	        }
 
 	        if (typeof command.fingerIndex === "number") {
-	          await sendSingleFingerAction(command.fingerIndex, `SSVEP ${command.name}`);
+	          if (command.extend) {
+	            const extendBytes = buildSingleFingerHex(command.fingerIndex, FINGER_EXTEND);
+	            await writeBytes(parseHex(extendBytes), `MI ${command.name}`);
+	            await wait(200);
+	            await writeBytes(parseHex(extendBytes), `MI ${command.name} 重发`);
+	          } else {
+	            await sendSingleFingerAction(command.fingerIndex, `SSVEP ${command.name}`);
+	          }
 	        } else {
-	          await writeBytes(parseHex(command.hex), `SSVEP ${command.name}`);
+	          await writeBytes(parseHex(command.hex), `${currentMode === "mi" ? "MI" : "SSVEP"} ${command.name}`);
 	          if (command.repeat !== false) {
 	            await wait(180);
-	            await writeBytes(parseHex(command.hex), `SSVEP ${command.name} 重发`);
+	            await writeBytes(parseHex(command.hex), `${currentMode === "mi" ? "MI" : "SSVEP"} ${command.name} 重发`);
 	          }
 	        }
 
 	        applyControlPrimedState(command);
-	      }, `SSVEP ${command.name}`);
+	      }, `${currentMode === "mi" ? "MI" : "SSVEP"} ${command.name}`);
 	    }
 
 	    async function testCloseOpenSequence() {
@@ -1347,13 +1448,15 @@
 	        addLog("sys", "蓝牙未连接，无法执行动作测试");
 	        return;
 	      }
+	      const closeCmd = getActiveCommands().find((c) => c.id === "close" || c.id === "mi_close") || getActiveCommands()[1];
+	      const openCmd = getActiveCommands().find((c) => c.id === "open" || c.id === "mi_open") || getActiveCommands()[0];
 	      try {
 	        await enqueueBleTask(async () => {
 	          await ensureControlPrimed();
-	          await writeBytes(parseHex(SSVEP_COMMANDS[1].hex), "动作测试 手握紧");
+	          await writeBytes(parseHex(closeCmd.hex), "动作测试 手握紧");
 	          await wait(1200);
-	          await writeBytes(parseHex(SSVEP_COMMANDS[0].hex), "动作测试 手张开");
-	          applyControlPrimedState(SSVEP_COMMANDS[0]);
+	          await writeBytes(parseHex(openCmd.hex), "动作测试 手张开");
+	          applyControlPrimedState(openCmd);
 	        }, "动作测试");
 	      } catch (error) {
 	        addLog("err", error.message || String(error));
@@ -1361,15 +1464,18 @@
 	    }
 
 	    async function applyCcaResult(result) {
-	      const command = SSVEP_COMMANDS.find((item) => item.hex === result.command_hex)
-	        || findSsvEPCommandByFrequency(Number(result.recognized_freq));
+	      const command = getActiveCommands().find((item) => item.hex === result.command_hex)
+	        || (Number.isFinite(Number(result.recognized_freq)) ? findSsvEPCommandByFrequency(Number(result.recognized_freq)) : null);
 	      if (!command) {
-	        addLog("err", `算法输出 ${Number(result.recognized_freq).toFixed(2)} Hz，但没有匹配到手张开/手握紧指令`);
+	        addLog("err", `算法输出 ${result.recognized_freq || "—"}，但没有匹配到任何指令`);
 	        return;
 	      }
-	      recognizedFreqEl.value = Number(result.recognized_freq).toFixed(2);
+	      if (Number.isFinite(Number(result.recognized_freq))) {
+	        recognizedFreqEl.value = Number(result.recognized_freq).toFixed(2);
+	      }
 	      ssvepResultName.textContent = result.command_name || command.name;
-	      ssvepResultMeta.textContent = `CCA: ${Number(result.recognized_freq).toFixed(2)} Hz -> ${result.command_name || command.name}，置信比 ${Number(result.confidence_ratio).toFixed(4)}`;
+	      ssvepResultMeta.textContent = `CCA: ${Number.isFinite(Number(result.recognized_freq)) ? Number(result.recognized_freq).toFixed(2) + " Hz" : "—"} -> ${result.command_name || command.name}` +
+	        `${result.confidence_ratio ? "，置信比 " + Number(result.confidence_ratio).toFixed(4) : ""}`;
 	      ssvepResultHex.textContent = result.command_hex || command.hex;
 	      await executeSsvEPCommand(command, "CCA 算法");
 	    }
@@ -1379,10 +1485,24 @@
 	      const target = String(result.target ?? result.target_id ?? result.id ?? "").trim();
 	      const commandName = String(result.command_name ?? result.name ?? "").trim();
 	      const commandHex = String(result.command_hex ?? result.hex ?? "").trim();
-	      return SSVEP_COMMANDS.find((item) => commandHex && item.hex === commandHex)
-	        || SSVEP_COMMANDS.find((item) => target && item.id === target)
-	        || SSVEP_COMMANDS.find((item) => commandName && item.name === commandName)
-	        || (Number.isFinite(freq) ? findSsvEPCommandByFrequency(freq) : null);
+	      const activeCommands = getActiveCommands();
+	      return activeCommands.find((item) => commandHex && item.hex === commandHex)
+	        || activeCommands.find((item) => target && item.id === target)
+	        || activeCommands.find((item) => commandName && item.name === commandName)
+	        || (currentMode !== "mi" && Number.isFinite(freq) ? findSsvEPCommandByFrequency(freq) : null);
+	    }
+
+	    function getRealtimeResultMode(result) {
+	      const mode = String(result.mode ?? result.process_mode ?? result.paradigm ?? "").trim().toLowerCase();
+	      if (mode === "mi" || mode === "motor_imagery" || mode === "运动想象") return "mi";
+	      if (mode === "ssvep") return "ssvep";
+
+	      const target = String(result.target ?? result.target_id ?? result.id ?? "").trim();
+	      const commandName = String(result.command_name ?? result.name ?? "").trim();
+	      if (target.startsWith("mi_") || result.predicted_class !== undefined) return "mi";
+	      if (["全部握紧", "全部松开", "大拇指张开"].includes(commandName)) return "mi";
+	      if (Number.isFinite(Number(result.recognized_freq ?? result.freq))) return "ssvep";
+	      return "";
 	    }
 
 	    async function applyRealtimeEegResult(result) {
@@ -1390,6 +1510,15 @@
 	        const freq = Number(result.recognized_freq ?? result.freq);
 	        const label = result.command_name || result.target || result.command_hex || "未命名结果";
 	        addLog("sys", `实时联动已停止，忽略 MATLAB 结果: ${label}${Number.isFinite(freq) ? ` / ${freq.toFixed(2)} Hz` : ""}`);
+	        return;
+	      }
+
+	      const resultMode = getRealtimeResultMode(result);
+	      if (resultMode && resultMode !== currentMode) {
+	        const modeName = resultMode === "mi" ? "运动想象" : "SSVEP";
+	        const currentModeName = currentMode === "mi" ? "运动想象" : "SSVEP";
+	        const label = result.command_name || result.target || result.command_hex || "未命名结果";
+	        addLog("sys", `忽略${modeName}结果：当前处于${currentModeName}模式（${label}）`);
 	        return;
 	      }
 
@@ -1402,22 +1531,28 @@
 
 	      const now = Date.now();
 	      if (lastRealtimeCommandId === command.id && now - lastRealtimeCommandAt < REALTIME_SEND_COOLDOWN_MS) {
-	        ssvepResultMeta.textContent = `MATLAB 实时：${Number.isFinite(freq) ? freq.toFixed(2) : command.freq.toFixed(2)} Hz -> ${command.name}，冷却中未重复发送`;
+	        const coolFreq = Number.isFinite(freq) ? freq : command.freq;
+	        ssvepResultMeta.textContent = `${currentMode === "mi" ? "运动想象" : "MATLAB"}` +
+	          ` 实时：${Number.isFinite(coolFreq) ? coolFreq.toFixed(2) + " Hz" : "—"} -> ${command.name}，冷却中未重复发送`;
 	        return;
 	      }
 
 	      lastRealtimeCommandId = command.id;
 	      lastRealtimeCommandAt = now;
-	      recognizedFreqEl.value = Number.isFinite(freq) ? freq.toFixed(2) : command.freq.toFixed(2);
+	      if (Number.isFinite(freq)) {
+	        recognizedFreqEl.value = freq.toFixed(2);
+	      }
 	      ssvepResultName.textContent = result.command_name || command.name;
-	      ssvepResultMeta.textContent = `MATLAB 实时：${recognizedFreqEl.value} Hz -> ${result.command_name || command.name}，置信 ${Number(result.confidence_ratio ?? result.confidence ?? 0).toFixed(4)}`;
+	      ssvepResultMeta.textContent = currentMode === "mi"
+	        ? `运动想象实时：${result.command_name || command.name}，置信 ${Number(result.confidence_ratio ?? result.confidence ?? 0).toFixed(4)}`
+	        : `MATLAB 实时：${Number.isFinite(freq) ? freq.toFixed(2) : "—"} Hz -> ${result.command_name || command.name}，置信 ${Number(result.confidence_ratio ?? result.confidence ?? 0).toFixed(4)}`;
 	      ssvepResultHex.textContent = result.command_hex || command.hex;
-	      await executeSsvEPCommand(command, "MATLAB 实时");
+	      await executeSsvEPCommand(command, currentMode === "mi" ? "运动想象实时" : "MATLAB 实时");
 	    }
 
 	    async function syncBridgeConfig() {
 	      try {
-	        await postJson("/api/config", { commands: bridgePayloadCommands() });
+	        await postJson("/api/config", { mode: currentMode, commands: bridgePayloadCommands() });
 	      } catch (error) {
 	        addLog("err", `实时配置同步失败: ${error.message || String(error)}`);
 	      }
@@ -1426,6 +1561,7 @@
 	    async function startRealtimeSession() {
 	      try {
 	        await postJson("/api/session/start", {
+	          mode: currentMode,
 	          commands: bridgePayloadCommands(),
 	          trial: `session-${Date.now()}`
 	        });
@@ -1475,10 +1611,21 @@
 	        const payload = JSON.parse(event.data);
 	        lanIps = payload.lan_ips || [];
 	        realtimeSessionActive = Boolean(payload.state?.session?.active);
+	        if (payload.state?.config?.mode && payload.state.config.mode !== currentMode) {
+	          updateProcessMode(payload.state.config.mode, { sync: false });
+	        }
 	        refreshMatlabPostUrl();
 	      });
-	      eventSource.addEventListener("config_update", () => {
-	        addLog("sys", "刺激配置已同步到服务端");
+	      eventSource.addEventListener("config_update", (event) => {
+	        const config = JSON.parse(event.data);
+	        if (config.mode && config.mode !== currentMode) {
+	          updateProcessMode(config.mode, { sync: false });
+	        }
+	        const logKey = `${config.mode || ""}:${config.updated_at || ""}:${config.commands?.length || 0}`;
+	        if (logKey !== lastConfigLogKey) {
+	          lastConfigLogKey = logKey;
+	          addLog("sys", "刺激配置已同步到服务端");
+	        }
 	      });
 	      eventSource.addEventListener("session_start", () => {
 	        realtimeSessionActive = true;
@@ -1529,8 +1676,17 @@
 
 	    function applyRecognizedFrequency() {
 	      const freq = Number.parseFloat(recognizedFreqEl.value);
-	      if (!Number.isFinite(freq)) {
+	      if (!Number.isFinite(freq) && currentMode !== "mi") {
 	        addLog("err", "识别频率无效");
+	        return;
+	      }
+	      if (currentMode === "mi") {
+	        const selected = getActiveCommands().find((c) => c.id === recognizedFreqEl.value);
+	        if (selected) {
+	          executeSsvEPCommand(selected, "运动想象");
+	        } else {
+	          addLog("err", "请从目标区点击一个运动想象指令");
+	        }
 	        return;
 	      }
 	      const command = findSsvEPCommandByFrequency(freq);
@@ -1583,14 +1739,23 @@
 
 	    connectBtn.addEventListener("click", connect);
 	    disconnectBtn.addEventListener("click", disconnect);
+	    document.querySelectorAll("#processMode button").forEach((btn) => {
+	      btn.addEventListener("click", () => updateProcessMode(btn.dataset.mode));
+	    });
 	    runCcaBtn.addEventListener("click", runCcaRecognition);
 	    $("#openStimulusBtn").addEventListener("click", openStimulusPage);
 	    $("#startSessionBtn").addEventListener("click", startRealtimeSession);
 	    $("#stopSessionBtn").addEventListener("click", stopRealtimeSession);
     $("#saveFreqBtn").addEventListener("click", saveFrequencySettings);
     $("#useFingerPresetBtn").addEventListener("click", useFingerFrequencyPreset);
-	    $("#simulateOpenBtn").addEventListener("click", () => executeSsvEPCommand(SSVEP_COMMANDS[0], "模拟识别"));
-	    $("#simulateCloseBtn").addEventListener("click", () => executeSsvEPCommand(SSVEP_COMMANDS[1], "模拟识别"));
+	    $("#simulateOpenBtn").addEventListener("click", () => {
+	      const cmd = getActiveCommands().find((c) => c.id === "open" || c.id === "mi_open") || getActiveCommands()[0];
+	      executeSsvEPCommand(cmd, "模拟识别");
+	    });
+	    $("#simulateCloseBtn").addEventListener("click", () => {
+	      const cmd = getActiveCommands().find((c) => c.id === "close" || c.id === "mi_close") || getActiveCommands()[1];
+	      executeSsvEPCommand(cmd, "模拟识别");
+	    });
 	    $("#testCloseOpenBtn").addEventListener("click", testCloseOpenSequence);
 	    $("#applyFreqBtn").addEventListener("click", applyRecognizedFrequency);
 	    $("#clearLogBtn").addEventListener("click", () => {
