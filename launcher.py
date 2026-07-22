@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -109,16 +110,54 @@ def get_venv_python():
     return VENV_DIR / "bin" / "python"
 
 
+def is_venv_python_usable(python_bin):
+    try:
+        result = subprocess.run(
+            [str(python_bin), "--version"],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        info(f"虚拟环境 Python 不可用：{error}")
+        return False
+    if result.returncode == 0:
+        return True
+    output = (result.stdout or "").strip()
+    if output:
+        info(f"虚拟环境 Python 自检失败：{output}")
+    else:
+        info(f"虚拟环境 Python 自检失败，错误码 {result.returncode}。")
+    return False
+
+
+def recreate_venv():
+    if VENV_DIR.exists():
+        info("检测到当前 .venv 不可用，正在删除并重新创建 ...")
+        shutil.rmtree(VENV_DIR)
+    info("首次启动，正在创建虚拟环境 .venv ...")
+    run_logged_command([sys.executable, "-m", "venv", str(VENV_DIR)])
+
+
 def ensure_venv():
     python_bin = get_venv_python()
     if python_bin.exists():
+        if is_venv_python_usable(python_bin):
+            return python_bin
+        recreate_venv()
+        if python_bin.exists() and is_venv_python_usable(python_bin):
+            return python_bin
+        fail("虚拟环境重建失败，venv 里的 Python 仍不可用。")
+
+    recreate_venv()
+    if python_bin.exists():
         return python_bin
 
-    info("首次启动，正在创建虚拟环境 .venv ...")
-    run_logged_command([sys.executable, "-m", "venv", str(VENV_DIR)])
-    if not python_bin.exists():
-        fail("虚拟环境创建失败，未找到 venv 里的 Python。")
-    return python_bin
+    fail("虚拟环境创建失败，未找到 venv 里的 Python。")
 
 
 def relaunch_in_venv():
