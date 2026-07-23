@@ -829,8 +829,10 @@
       return FINGER_NAMES.map((_, fingerIndex) => fingerIndex === index ? value : FINGER_KEEP);
     }
 
-    function buildSingleFingerHex(index, value = FINGER_BEND) {
-      return buildFingerHex(singleFingerStates(index, value));
+    function buildSingleFingerHex(index, value = FINGER_BEND, otherValue = FINGER_KEEP) {
+      return buildFingerHex(FINGER_NAMES.map((_, fingerIndex) => (
+        fingerIndex === index ? value : otherValue
+      )));
     }
 
     const SSVEP_COMMANDS = [
@@ -847,7 +849,7 @@
     const MI_COMMANDS = [
       { id: "mi_close", name: "全部握紧", symbol: "紧", hex: "A5 5A 02 0B 0F 01 01 01 01 01 DF" },
       { id: "mi_open", name: "全部松开", symbol: "松", hex: "A5 5A 02 0B 0F 00 00 00 00 00 E4" },
-      { id: "mi_thumb", name: "大拇指张开", symbol: "拇", hex: "A5 5A 02 0B 0F 00 02 02 02 02 E2", fingerIndex: 0, extend: true }
+      { id: "mi_thumb", name: "大拇指张开", symbol: "拇", hex: buildSingleFingerHex(0, FINGER_EXTEND, FINGER_BEND), fingerIndex: 0, extend: true }
     ];
 	    const CONTROL_MODE_HEX = "A5 5A 02 07 06 07 EA";
 	    const START_HEX = "A5 5A 02 07 0A 01 EC";
@@ -1406,6 +1408,24 @@
 	      await writeBytes(bend, `${label} 单指屈曲重发`);
 	    }
 
+	    async function sendMiSingleFingerExtend(command) {
+	      const closeBytes = parseHex(MI_COMMANDS.find((item) => item.id === "mi_close").hex);
+	      const extendBytes = parseHex(buildSingleFingerHex(
+	        command.fingerIndex,
+	        FINGER_EXTEND,
+	        FINGER_BEND
+	      ));
+
+	      await writeBytes(parseHex(PAUSE_HEX), `MI ${command.name} 暂停`);
+	      controlPrimed = false;
+	      await wait(250);
+	      await writeBytes(closeBytes, `MI ${command.name} 全部握紧`);
+	      await wait(700);
+	      await writeBytes(extendBytes, `MI ${command.name} 单指张开`);
+	      await wait(200);
+	      await writeBytes(extendBytes, `MI ${command.name} 单指张开重发`);
+	    }
+
 	    async function executeSsvEPCommand(command, source = "算法识别") {
 	      updateSsvEPResult(command, source);
 	      if (!autoSendSsvEP.checked) {
@@ -1418,16 +1438,15 @@
 	      }
 
 	      return enqueueBleTask(async () => {
-	        if (!command.skipPrime) {
+	        const isMiSingleFingerExtend = currentMode === "mi" && command.extend &&
+	          typeof command.fingerIndex === "number";
+	        if (!command.skipPrime && !isMiSingleFingerExtend) {
 	          await ensureControlPrimed();
 	        }
 
 	        if (typeof command.fingerIndex === "number") {
 	          if (command.extend) {
-	            const extendBytes = buildSingleFingerHex(command.fingerIndex, FINGER_EXTEND);
-	            await writeBytes(parseHex(extendBytes), `MI ${command.name}`);
-	            await wait(200);
-	            await writeBytes(parseHex(extendBytes), `MI ${command.name} 重发`);
+	            await sendMiSingleFingerExtend(command);
 	          } else {
 	            await sendSingleFingerAction(command.fingerIndex, `SSVEP ${command.name}`);
 	          }
