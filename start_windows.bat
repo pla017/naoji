@@ -42,46 +42,61 @@ if not exist "%SERVER%" (
   goto end
 )
 
-where py >nul 2>nul
-if not errorlevel 1 (
-  py -3 --version >nul 2>nul
-  if not errorlevel 1 goto run_py
+set "PYTHON_BIN="
+set "PYTHON_LABEL="
+
+if exist "%~dp0.venv\Scripts\python.exe" (
+  "%~dp0.venv\Scripts\python.exe" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+  if not errorlevel 1 (
+    set "PYTHON_BIN=%~dp0.venv\Scripts\python.exe"
+    set "PYTHON_LABEL=项目虚拟环境"
+  )
 )
 
-where python3 >nul 2>nul
-if not errorlevel 1 (
-  python3 --version >nul 2>nul
-  if not errorlevel 1 goto run_python3
+if not defined PYTHON_BIN (
+  where py >nul 2>nul
+  if not errorlevel 1 (
+    py -3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+    if not errorlevel 1 (
+      set "PYTHON_BIN=py -3"
+      set "PYTHON_LABEL=py -3"
+    )
+  )
 )
 
-where python >nul 2>nul
-if not errorlevel 1 (
-  python --version >nul 2>nul
-  if not errorlevel 1 goto run_python
+if not defined PYTHON_BIN (
+  where python3 >nul 2>nul
+  if not errorlevel 1 (
+    python3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+    if not errorlevel 1 (
+      set "PYTHON_BIN=python3"
+      set "PYTHON_LABEL=python3"
+    )
+  )
 )
 
-call :log ""
-call :log "未检测到 Python 3。"
-call :log "请先安装 Python 3.10 或更高版本，并在安装时勾选 Add python.exe to PATH。"
-call :log "下载地址: https://www.python.org/downloads/windows/"
-set "EXIT_CODE=1"
-goto end
+if not defined PYTHON_BIN (
+  where python >nul 2>nul
+  if not errorlevel 1 (
+    python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+    if not errorlevel 1 (
+      set "PYTHON_BIN=python"
+      set "PYTHON_LABEL=python"
+    )
+  )
+)
 
-:run_py
-call :log "使用 Python 启动器：py -3"
-py -3 "%SCRIPT%" %*
-set "EXIT_CODE=%ERRORLEVEL%"
-goto end
+if not defined PYTHON_BIN (
+  call :log ""
+  call :log "未检测到 Python 3.10 或更高版本。"
+  call :log "请安装 Python 3.10+，并在安装时勾选 Add python.exe to PATH。"
+  call :log "下载地址: https://www.python.org/downloads/windows/"
+  set "EXIT_CODE=1"
+  goto end
+)
 
-:run_python3
-call :log "使用 Python 命令：python3"
-python3 "%SCRIPT%" %*
-set "EXIT_CODE=%ERRORLEVEL%"
-goto end
-
-:run_python
-call :log "使用 Python 命令：python"
-python "%SCRIPT%" %*
+call :log "使用 Python：%PYTHON_LABEL%"
+%PYTHON_BIN% "%SCRIPT%" %*
 set "EXIT_CODE=%ERRORLEVEL%"
 goto end
 

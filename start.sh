@@ -14,13 +14,27 @@ if [ ! -f "ssvep_server.py" ]; then
   exit 1
 fi
 
-if command -v python3 >/dev/null 2>&1; then
-  PYTHON_BIN="python3"
-elif command -v python >/dev/null 2>&1; then
-  PYTHON_BIN="python"
-else
-  echo "未找到 Python。请先安装 Python 3，或使用系统自带的 python3。"
+is_supported_python() {
+  "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1
+}
+
+PYTHON_BIN=""
+for candidate in "$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/.venv/bin/python3" python3 python; do
+  if command -v "$candidate" >/dev/null 2>&1 || [ -x "$candidate" ]; then
+    if is_supported_python "$candidate"; then
+      PYTHON_BIN="$candidate"
+      break
+    fi
+  fi
+done
+
+if [ -z "$PYTHON_BIN" ]; then
+  echo "未找到 Python 3.10 或更高版本。"
+  echo "当前 python3 可能是 Xcode 自带的 3.9，请先安装：brew install python@3.13"
+  echo "安装后重新运行：./start.sh"
   exit 1
 fi
+
+echo "使用 Python：$PYTHON_BIN"
 
 "$PYTHON_BIN" launcher.py "$@"

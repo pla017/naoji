@@ -82,3 +82,48 @@ Traceback (most recent call last):
   File [35m"/Users/jack/MyCode/naoji/launcher.py"[0m, line [35m95[0m, in [35mrun_logged_command[0m
     raise subprocess.CalledProcessError(return_code, command)
 [1;35msubprocess.CalledProcessError[0m: [35mCommand '['/Applications/ServBay/package/python/3.13/3.13.13/Python.framework/Versions/3.13/bin/python3', '/Users/jack/MyCode/naoji/ssvep_server.py', '--host', '127.0.0.1', '--port', '8001', '--matlab', '/Users/jack/.local/bin/matlab']' died with <Signals.SIGTERM: 15>.[0m
+
+launcher.py 启动时间：2026-07-28 08:58:23
+Python：/Applications/Xcode.app/Contents/Developer/usr/bin/python3
+日志文件：/Users/jack/MyCode/naoji/logs/start_windows.log
+需要 Python 3.10 或更高版本，当前版本是 3.9.6
+
+launcher.py 启动时间：2026-07-28 08:59:48
+Python：/Applications/Xcode.app/Contents/Developer/usr/bin/python3
+日志文件：/Users/jack/MyCode/naoji/logs/start_windows.log
+需要 Python 3.10 或更高版本，当前版本是 3.9.6
+
+launcher.py 启动时间：2026-07-28 09:00:00
+Python：/Applications/Xcode.app/Contents/Developer/usr/bin/python3
+日志文件：/Users/jack/MyCode/naoji/logs/start_windows.log
+需要 Python 3.10 或更高版本，当前版本是 3.9.6
+
+launcher.py 启动时间：2026-07-28 09:06:24
+Python：/Users/jack/MyCode/naoji/.venv/bin/python
+日志文件：/Users/jack/MyCode/naoji/logs/start_windows.log
+requirements.txt 当前没有额外依赖，跳过安装。
+
+气动手套 SSVEP 控制台准备启动
+工作目录：/Users/jack/MyCode/naoji
+控制页：http://127.0.0.1:8001/index.html
+被试页：http://127.0.0.1:8001/stimulus.html
+EEG_RESULT_URL=http://127.0.0.1:8001/api/eeg_result
+MATLAB 本机上报地址：http://127.0.0.1:8001/api/eeg_result
+离线测试接口：http://127.0.0.1:8001/api/recognize
+健康检查：http://127.0.0.1:8001/api/health
+MATLAB：/Users/jack/.local/bin/matlab
+提示：Web Bluetooth 建议使用 Chrome 或 Edge 打开。
+停止服务：在当前窗口按 Ctrl+C
+
+SSVEP server running at http://127.0.0.1:8001/index.html
+Recognition API: /api/recognize
+Realtime events: /api/events
+MATLAB result POST: /api/eeg_result
+Health API: /api/health
+Detected MATLAB: /Users/jack/.local/bin/matlab
+127.0.0.1 - - [28/Jul/2026 09:06:25] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 09:06:25] "POST /api/config HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 09:06:25] "GET /api/events HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 09:06:25] code 404, message File not found
+127.0.0.1 - - [28/Jul/2026 09:06:25] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [28/Jul/2026 09:06:27] "POST /api/config HTTP/1.1" 200 -
